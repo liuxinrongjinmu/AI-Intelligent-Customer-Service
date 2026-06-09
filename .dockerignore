@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# 环境与密钥
+.env
+.env.local
+.env.production
+
+# 运行时数据
+data/
+*.db
+*.db-shm
+*.db-wal
+chroma_db/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 测试与缓存
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# 临时文件
+*.log
+*.tmp
+temp_*.py
+
+# 文档与素材（不需要进入镜像）
+ai-cs-materials/
+_backup_scripts/
+_*.py
+
+# Git
+.git/
+.gitignore

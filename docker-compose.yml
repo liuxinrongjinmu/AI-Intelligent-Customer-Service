@@ -1,0 +1,54 @@
+version: "3.8"
+
+services:
+  kefu-agent:
+    build: .
+    container_name: kefu-agent
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:?DeepSeek API Key 必须配置}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - LLM_MODEL=${LLM_MODEL:-deepseek-chat}
+      - EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-cpu}
+      # 管理接口认证密钥（仅管理接口使用，服务间接口走 Gateway 认证）
+      - ADMIN_API_KEY=${ADMIN_API_KEY:?Admin API Key 必须配置}
+      # Gateway 认证配置（所有环境统一）
+      - GATEWAY_VERIFIED_HEADER=${GATEWAY_VERIFIED_HEADER:-X-Gateway-Verified}
+      - GATEWAY_VERIFIED_VALUE=${GATEWAY_VERIFIED_VALUE:-true}
+      - GATEWAY_IP_WHITELIST=${GATEWAY_IP_WHITELIST:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      # Nacos 服务注册与发现
+      - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-127.0.0.1:8848}
+      - NACOS_NAMESPACE=${NACOS_NAMESPACE:-}
+      - NACOS_GROUP=${NACOS_GROUP:-DEFAULT_GROUP}
+      - NACOS_USERNAME=${NACOS_USERNAME:-}
+      - NACOS_PASSWORD=${NACOS_PASSWORD:-}
+      - SERVICE_IP=${SERVICE_IP:-}
+      - SERVICE_PORT=${SERVICE_PORT:-8080}
+      # 聚宝赞端 Nacos 服务名（所有 ext-merchant API 部署在同一个服务上）
+      - MERCHANT_SERVICE_NAME=${MERCHANT_SERVICE_NAME:-merchant-service}
+      # 业务 API 超时配置（秒）
+      - ORDER_API_TIMEOUT=${ORDER_API_TIMEOUT:-10}
+      - LOGISTICS_API_TIMEOUT=${LOGISTICS_API_TIMEOUT:-10}
+      - PRODUCT_API_TIMEOUT=${PRODUCT_API_TIMEOUT:-10}
+      - REFUND_API_TIMEOUT=${REFUND_API_TIMEOUT:-10}
+      - COUPON_API_TIMEOUT=${COUPON_API_TIMEOUT:-10}
+      - USER_PROFILE_API_TIMEOUT=${USER_PROFILE_API_TIMEOUT:-10}
+    volumes:
+      - ./data:/app/data
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: "2G"
+        reservations:
+          cpus: "0.5"
+          memory: "512M"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/v1/system/health', timeout=5).status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
