@@ -5,13 +5,17 @@ WORKDIR /app
 # 创建非 root 用户
 RUN useradd -m -u 1000 appuser
 
+# 使用阿里云镜像源加速 apt 下载
+RUN sed -i "s|http://deb.debian.org|http://mirrors.aliyun.com|g" /etc/apt/sources.list.d/debian.sources && \
+    sed -i "s|http://security.debian.org|http://mirrors.aliyun.com|g" /etc/apt/sources.list.d/debian.sources
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements-lock.txt .
-RUN pip install --no-cache-dir -r requirements-lock.txt \
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
     -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 COPY . .

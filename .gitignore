@@ -17,6 +17,19 @@ __pycache__/
 venv/
 .env/
 .pytest_cache/
+*.egg-info/
+*.egg
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+
+# 测试覆盖率
+.coverage
+htmlcov/
+
+# 日志
+*.log
 
 # IDE
 .vscode/
@@ -25,3 +38,7 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# Vim
+*.swp
+*.swo

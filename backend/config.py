@@ -39,7 +39,7 @@ RESPONSE_RESERVED_TOKENS = int(os.getenv("RESPONSE_RESERVED_TOKENS", "2048"))
 HISTORY_MAX_TURNS_FALLBACK = int(os.getenv("HISTORY_MAX_TURNS_FALLBACK", "6"))
 
 HOST = os.getenv("HOST", "127.0.0.1")
-PORT = int(os.getenv("PORT", "8080"))
+PORT = int(os.getenv("PORT", "8081"))
 
 # Swagger UI 服务器地址（用于内网联调时 "Try it out" 功能生成正确的请求 URL）
 SWAGGER_SERVER_URL: str = os.getenv("SWAGGER_SERVER_URL", f"http://192.168.0.234:{PORT}")
