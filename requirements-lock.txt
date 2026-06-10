@@ -224,9 +224,7 @@ multiprocess==0.70.16
 murmurhash==1.0.15
 mypy==2.1.0
 mypy_extensions==1.1.0
-mysql==0.0.3
 mysql-connector-python==9.3.0
-mysqlclient==2.2.7
 nacos-sdk-python==2.0.11
 narwhals==1.45.0
 nbclient==0.10.2
