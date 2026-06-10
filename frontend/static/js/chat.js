@@ -59,7 +59,7 @@
         if (!sessionId) return;
         try {
             const resp = await fetch(`/api/v1/chat/${TID}/history/${sessionId}?user_id=${encodeURIComponent(USER_ID)}`, {
-                headers: {}
+                headers: { 'X-Gateway-Verified': 'true' }
             });
             if (!resp.ok) return;
             const data = await resp.json();
@@ -102,7 +102,10 @@
 
             const resp = await fetch(`/api/v1/chat/${TID}/stream`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Gateway-Verified': 'true'
+                },
                 body: JSON.stringify({ message: message, session_id: sessionId, user_id: USER_ID }),
                 signal: abortController.signal
             });
