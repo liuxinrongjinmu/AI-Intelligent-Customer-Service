@@ -7,7 +7,6 @@
  */
 (function() {
     const TID = window.TENANT_ID;
-    const GW_TOKEN = window.GW_TOKEN || '';
     const USER_ID = window.USER_ID || localStorage.getItem(`user_${TID}`) || '';
     let sessionId = localStorage.getItem(`session_${TID}`) || '';
     let isStreaming = false;
@@ -60,7 +59,7 @@
         if (!sessionId) return;
         try {
             const resp = await fetch(`/api/v1/chat/${TID}/history/${sessionId}?user_id=${encodeURIComponent(USER_ID)}`, {
-                headers: GW_TOKEN ? { 'X-Gateway-Verified': GW_TOKEN } : {}
+                headers: {}
             });
             if (!resp.ok) return;
             const data = await resp.json();
@@ -101,11 +100,9 @@
             var abortController = new AbortController();
             var timeoutId = setTimeout(function() { abortController.abort(); }, 120000);
 
-            const headers = { 'Content-Type': 'application/json' };
-            if (GW_TOKEN) headers['X-Gateway-Verified'] = GW_TOKEN;
             const resp = await fetch(`/api/v1/chat/${TID}/stream`, {
                 method: 'POST',
-                headers: headers,
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message: message, session_id: sessionId, user_id: USER_ID }),
                 signal: abortController.signal
             });

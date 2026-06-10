@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.database import init_db
-from backend.config import HOST, PORT, validate_config, SWAGGER_SERVER_URL, GATEWAY_VERIFIED_VALUE
+from backend.config import HOST, PORT, validate_config, SWAGGER_SERVER_URL
 
 # 请求体大小限制（防护大请求攻击）
 MAX_BODY_SIZE = 10 * 1024 * 1024  # 10MB
@@ -162,7 +162,6 @@ def consumer_chat_page(request: Request, tenant_id: str):
     return templates.TemplateResponse("consumer/chat.html", {
         "request": request,
         "tenant_id": tenant_id,
-        "gw_token": GATEWAY_VERIFIED_VALUE,
     })
 
 
