@@ -220,6 +220,6 @@
     </div>
 </div>
 
-<script>window.TENANT_ID = {{ tenant_id | tojson }};</script>
+<script>window.TENANT_ID = {{ tenant_id | tojson }};window.GW_TOKEN = {{ gw_token | tojson }};</script>
 <script src="/static/js/chat.js"></script>
 {% endblock %}
