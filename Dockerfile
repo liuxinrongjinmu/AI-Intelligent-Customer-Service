@@ -14,8 +14,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
+COPY requirements-lock.txt .
+RUN pip install --no-cache-dir -r requirements-lock.txt \
+    -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+RUN pip install --no-cache-dir langchain-deepseek \
     -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 COPY . .
