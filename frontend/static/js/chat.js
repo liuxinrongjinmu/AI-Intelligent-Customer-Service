@@ -7,8 +7,14 @@
  */
 (function() {
     const TID = window.TENANT_ID;
-    const USER_ID = window.USER_ID || localStorage.getItem(`user_${TID}`) || '';
     let sessionId = localStorage.getItem(`session_${TID}`) || '';
+
+    // 自动生成 user_id（前端消费者无登录态，使用随机ID标识）
+    let USER_ID = window.USER_ID || localStorage.getItem(`user_${TID}`);
+    if (!USER_ID) {
+        USER_ID = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+        localStorage.setItem(`user_${TID}`, USER_ID);
+    }
     let isStreaming = false;
     let currentAIBubble = null;
 
