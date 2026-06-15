@@ -198,3 +198,26 @@ def clear_knowledge_base(
         tenant_id=tenant_id,
         message=f"已清空 {tenant_id}/{kb_type} 知识库"
     )
+
+
+# ============================================================
+# 同步历史（版本管理）
+# ============================================================
+
+@router.get("/sync/{tenant_id}/history")
+def get_sync_history(
+    tenant_id: str,
+    kb_type: str = None,
+    limit: int = 20,
+    _api_key: str = Depends(verify_sync_api_key),
+):
+    """
+    获取知识库同步历史记录
+
+    :param tenant_id: 租户ID
+    :param kb_type: 知识库类型（可选，为空返回所有类型）
+    :param limit: 返回条数
+    """
+    from backend.knowledge.sync_log import get_sync_history
+    history = get_sync_history(tenant_id, kb_type, limit)
+    return {"success": True, "tenant_id": tenant_id, "history": history}

@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from backend.database import get_db
-from backend.utils.metrics import metrics
+from backend.utils.metrics import get_metrics_text, get_metrics_json
 from backend.utils.response_cache import cache_stats
 from backend.models.conversation import Conversation, Message
 from backend.models.handoff import HandoffTicket
@@ -37,8 +37,15 @@ def health_check():
 
 @router.get("/metrics")
 def get_metrics(_auth: str = Depends(verify_chat_api_key)):
-    """获取系统运行指标"""
-    return metrics.snapshot()
+    """获取 Prometheus 格式的系统运行指标"""
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(content=get_metrics_text(), media_type="text/plain; charset=utf-8")
+
+
+@router.get("/metrics/json")
+def get_metrics_json_endpoint(_auth: str = Depends(verify_chat_api_key)):
+    """获取 JSON 格式的系统运行指标"""
+    return get_metrics_json()
 
 
 @router.get("/cache")

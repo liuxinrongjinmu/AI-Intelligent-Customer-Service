@@ -10,12 +10,35 @@ from backend.config import (
     LOGISTICS_API_TIMEOUT,
     LOGISTICS_SERVICE_NAME,
 )
-from backend.middleware.http_client import get_shared_client
 from backend.nacos.http_client import nacos_request
+from backend.utils.retry import retry_on_transient_error
 
 logger = logging.getLogger(__name__)
 
 LOGISTICS_PATH = "/api/v1/ext-merchant/logistics"
+
+
+@retry_on_transient_error(max_retries=2)
+async def _do_query_logistics(tenant_id: str, order_no: str) -> dict[str, Any]:
+    """
+    执行物流查询 HTTP 请求（含重试）
+
+    :param tenant_id: 租户ID
+    :param order_no: 订单号
+    :return: API 响应 JSON
+    """
+    body: dict[str, Any] = {"tenantId": tenant_id, "orderNo": order_no}
+    headers = {"Content-Type": "application/json"}
+
+    response = await nacos_request(
+        "POST",
+        service_name=LOGISTICS_SERVICE_NAME,
+        path=LOGISTICS_PATH,
+        json_data=body,
+        headers=headers,
+        timeout=httpx.Timeout(LOGISTICS_API_TIMEOUT),
+    )
+    return response.json()
 
 
 async def query_logistics(
@@ -40,23 +63,7 @@ async def query_logistics(
         }
 
     try:
-        body: dict[str, Any] = {
-            "tenantId": tenant_id,
-            "orderNo": order_no,
-        }
-
-        headers = {"Content-Type": "application/json"}
-
-        client = get_shared_client()
-        response = await nacos_request(
-            "POST",
-            service_name=LOGISTICS_SERVICE_NAME,
-            path=LOGISTICS_PATH,
-            json_data=body,
-            headers=headers,
-            timeout=httpx.Timeout(LOGISTICS_API_TIMEOUT),
-        )
-        result = response.json()
+        result = await _do_query_logistics(tenant_id, order_no)
         return {
             "success": result.get("success", result.get("code", -1) == 0),
             "data": result.get("data"),

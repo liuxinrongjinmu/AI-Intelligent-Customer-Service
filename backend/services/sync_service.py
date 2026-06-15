@@ -110,6 +110,18 @@ def process_sync(
         f"processed={processed}, deleted={deleted}"
     )
 
+    # 记录同步日志
+    from backend.knowledge.sync_log import record_sync_log
+    record_sync_log(
+        tenant_id=tenant_id,
+        kb_type=kb_type,
+        sync_type=sync_type,
+        item_count=total,
+        processed_count=processed,
+        deleted_count=deleted,
+        status="success",
+    )
+
     return {"processed_count": processed, "deleted_count": deleted}
 
 
@@ -183,6 +195,18 @@ def process_batch(
     logger.info(
         f"批量操作完成: tenant={tenant_id}, kb_type={kb_type}, "
         f"processed={processed}, deleted={deleted}"
+    )
+
+    # 记录同步日志
+    from backend.knowledge.sync_log import record_sync_log
+    record_sync_log(
+        tenant_id=tenant_id,
+        kb_type=kb_type,
+        sync_type="batch",
+        item_count=total,
+        processed_count=processed,
+        deleted_count=deleted,
+        status="success",
     )
 
     return {"processed_count": processed, "deleted_count": deleted}

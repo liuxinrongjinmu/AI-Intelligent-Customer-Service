@@ -25,6 +25,7 @@ from backend.schemas.chat import ChatRequest, ChatHistoryResponse, ChatHistoryMe
 from backend.agent.graph import get_agent
 from backend.utils.security import validate_message
 from backend.utils.auth import verify_chat_api_key
+from backend.utils.metrics import record_chat_message, record_error
 from backend.utils.request_id import get_request_id
 
 logger = logging.getLogger(__name__)
@@ -143,6 +144,8 @@ async def chat_stream(
     )
     db.add(user_msg)
     db.commit()
+
+    record_chat_message()
 
     agent = await get_agent()
     config = {"configurable": {"thread_id": session_id}}

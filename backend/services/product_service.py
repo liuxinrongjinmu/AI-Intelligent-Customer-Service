@@ -11,12 +11,35 @@ from backend.config import (
     PRODUCT_API_TIMEOUT,
     PRODUCT_SERVICE_NAME,
 )
-from backend.middleware.http_client import get_shared_client
 from backend.nacos.http_client import nacos_request
+from backend.utils.retry import retry_on_transient_error
 
 logger = logging.getLogger(__name__)
 
 PRODUCT_DETAILS_PATH = "/api/v1/ext-merchant/product-details"
+
+
+@retry_on_transient_error(max_retries=2)
+async def _do_query_product(tenant_id: str, product_id: str) -> dict[str, Any]:
+    """
+    执行商品查询 HTTP 请求（含重试）
+
+    :param tenant_id: 租户ID
+    :param product_id: 商品ID
+    :return: API 响应 JSON
+    """
+    body = {"tenantId": tenant_id, "productId": product_id}
+    headers = {"Content-Type": "application/json"}
+
+    response = await nacos_request(
+        "POST",
+        service_name=PRODUCT_SERVICE_NAME,
+        path=PRODUCT_DETAILS_PATH,
+        json_data=body,
+        headers=headers,
+        timeout=httpx.Timeout(PRODUCT_API_TIMEOUT),
+    )
+    return response.json()
 
 
 async def query_product(
@@ -43,20 +66,7 @@ async def query_product(
         }
 
     try:
-        body = {"tenantId": tenant_id, "productId": product_id}
-        headers = {"Content-Type": "application/json"}
-
-        client = get_shared_client()
-        response = await nacos_request(
-            "POST",
-            service_name=PRODUCT_SERVICE_NAME,
-            path=PRODUCT_DETAILS_PATH,
-            json_data=body,
-            headers=headers,
-            timeout=httpx.Timeout(PRODUCT_API_TIMEOUT),
-        )
-
-        result = response.json()
+        result = await _do_query_product(tenant_id, product_id)
 
         # 解析 ResultProductDetailsVO 响应
         success = result.get("success", result.get("code", -1) == 0)

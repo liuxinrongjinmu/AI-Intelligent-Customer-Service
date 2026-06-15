@@ -12,12 +12,34 @@ from backend.config import (
     COUPON_API_TIMEOUT,
     COUPON_SERVICE_NAME,
 )
-from backend.middleware.http_client import get_shared_client
 from backend.nacos.http_client import nacos_request
+from backend.utils.retry import retry_on_transient_error
 
 logger = logging.getLogger(__name__)
 
 COUPON_LIST_PATH = "/api/v1/ext-merchant/coupon-list"
+
+
+@retry_on_transient_error(max_retries=2)
+async def _do_query_coupon(tenant_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    """
+    执行优惠券查询 HTTP 请求（含重试）
+
+    :param tenant_id: 租户ID
+    :param body: 请求体
+    :return: API 响应 JSON
+    """
+    headers = {"Content-Type": "application/json"}
+
+    response = await nacos_request(
+        "POST",
+        service_name=COUPON_SERVICE_NAME,
+        path=COUPON_LIST_PATH,
+        json_data=body,
+        headers=headers,
+        timeout=httpx.Timeout(COUPON_API_TIMEOUT),
+    )
+    return response.json()
 
 
 async def query_coupon(
@@ -71,18 +93,7 @@ async def query_coupon(
         if status:
             body["status"] = status
 
-        headers = {"Content-Type": "application/json"}
-
-        client = get_shared_client()
-        response = await nacos_request(
-            "POST",
-            service_name=COUPON_SERVICE_NAME,
-            path=COUPON_LIST_PATH,
-            json_data=body,
-            headers=headers,
-            timeout=httpx.Timeout(COUPON_API_TIMEOUT),
-        )
-        result = response.json()
+        result = await _do_query_coupon(tenant_id, body)
 
         success = result.get("success", result.get("code", -1) == 0)
         data = result.get("data")

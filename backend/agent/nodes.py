@@ -45,7 +45,7 @@ from backend.utils.response_cache import (
     get_cached_answer,
     set_cached_answer,
 )
-from backend.utils.metrics import metrics
+from backend.utils.metrics import record_llm_call, record_error, record_cache, record_retrieval, record_handoff, record_request_timing
 from backend.utils.token_budget import format_history_token_aware, format_knowledge_token_aware, estimate_tokens
 from backend.retrieval.hybrid_search import hybrid_search, keyword_match_search, ALL_KB_TYPES
 from backend.services.order_service import query_order, format_order_result
@@ -82,19 +82,21 @@ _BANNED_PHRASES = [
 ]
 
 
-async def _safe_llm_invoke(llm, messages: list, fallback_text: str = "抱歉，服务暂时不可用，请稍后重试。") -> str:
+async def _safe_llm_invoke(llm, messages: list, fallback_text: str = "抱歉，服务暂时不可用，请稍后重试。", node_name: str = "unknown") -> str:
     """
     安全的 LLM 调用包装：含重试 + 异常兜底
 
     :param llm: ChatDeepSeek 实例
     :param messages: 消息列表
     :param fallback_text: 失败时的兜底回复
+    :param node_name: 调用节点名称（用于指标采集）
     :return: LLM 响应文本或兜底文本
     """
     max_retries = 2
     for attempt in range(max_retries + 1):
         try:
             response = await llm.ainvoke(messages)
+            record_llm_call(node_name)
             return response.content if hasattr(response, 'content') else str(response)
         except Exception as e:
             if attempt < max_retries:
@@ -102,6 +104,7 @@ async def _safe_llm_invoke(llm, messages: list, fallback_text: str = "抱歉，�
                 await asyncio.sleep(1 * (attempt + 1))
             else:
                 logger.error(f"LLM 调用最终失败: {e}")
+                record_error("llm_call_failed")
                 return fallback_text
 
 
@@ -292,11 +295,11 @@ async def classify_intent_node(state: AgentState) -> dict:
 
     cached = get_cached_intent(current_message)
     if cached:
-        metrics.record_cache(True)
+        record_cache(True)
         logger.info(f"意图缓存命中: {cached['intent']}/{cached['intent_sub_type']}")
         return cached
 
-    metrics.record_cache(False)
+    record_cache(False)
     llm = _get_classify_llm()
     raw_response = await _safe_llm_invoke(
         llm,
@@ -385,7 +388,7 @@ async def classify_intent_node(state: AgentState) -> dict:
         "ai_failed_count": ai_failed_count,
     }
     set_cached_intent(current_message, result)
-    metrics.record_request(time.time() - t0, intent=f"{intent}/{intent_sub_type}")
+    record_request_timing(time.time() - t0, intent=f"{intent}/{intent_sub_type}")
     return result
 
 
@@ -495,7 +498,7 @@ async def retrieve_knowledge_node(state: AgentState) -> dict:
     final_docs = _keyword_boost(final_docs, keywords)
 
     has_results = len(final_docs) > 0
-    metrics.record_retrieval(has_results)
+    record_retrieval(has_results)
     logger.info(f"知识检索: query={search_query[:50]}, 召回 {len(final_docs)} 条, tenant={tenant_id}")
     return {"retrieved_docs": final_docs}
 
@@ -514,11 +517,11 @@ async def generate_answer_node(state: AgentState) -> dict:
 
     cached_answer = get_cached_answer(current_message, tenant_id)
     if cached_answer:
-        metrics.record_cache(True)
+        record_cache(True)
         logger.info(f"答案缓存命中: tenant={tenant_id}, msg={current_message[:30]}")
         return {"final_answer": cached_answer}
 
-    metrics.record_cache(False)
+    record_cache(False)
     context = _format_docs_for_llm(docs)
     llm = _get_generate_llm(streaming=False)
 
@@ -968,7 +971,7 @@ async def human_service_node(state: AgentState) -> dict:
         answer = "抱歉，转人工服务暂时不可用，请稍后重试或拨打客服热线。"
         return {"final_answer": answer}
 
-    metrics.record_handoff()
+    record_handoff()
 
     if intent_sub_type == "ai_limitation":
         answer = "抱歉未能完全理解您的问题，正在为您转接人工客服，请稍候。人工客服可以更准确地解答您的问题。"

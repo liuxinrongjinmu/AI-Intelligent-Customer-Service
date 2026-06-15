@@ -11,11 +11,35 @@ from backend.config import (
     ORDER_SERVICE_NAME,
 )
 from backend.nacos.http_client import nacos_request
+from backend.utils.retry import retry_on_transient_error
 
 logger = logging.getLogger(__name__)
 
 # 聚宝赞 ext-merchant API 路径
 ORDER_DETAILS_PATH = "/api/v1/ext-merchant/order-details"
+
+
+@retry_on_transient_error(max_retries=2)
+async def _do_query_order(tenant_id: str, order_no: str) -> dict[str, Any]:
+    """
+    执行订单查询 HTTP 请求（含重试）
+
+    :param tenant_id: 租户ID
+    :param order_no: 订单号
+    :return: API 响应 JSON
+    """
+    body: dict[str, Any] = {"tenantId": tenant_id, "orderNo": order_no}
+    headers = {"Content-Type": "application/json"}
+
+    response = await nacos_request(
+        "POST",
+        service_name=ORDER_SERVICE_NAME,
+        path=ORDER_DETAILS_PATH,
+        json_data=body,
+        headers=headers,
+        timeout=httpx.Timeout(ORDER_API_TIMEOUT),
+    )
+    return response.json()
 
 
 async def query_order(
@@ -33,22 +57,7 @@ async def query_order(
         return {"success": False, "data": None, "message": "请提供订单号以查询订单信息"}
 
     try:
-        body: dict[str, Any] = {
-            "tenantId": tenant_id,
-            "orderNo": order_no,
-        }
-
-        headers = _build_headers()
-
-        response = await nacos_request(
-            "POST",
-            service_name=ORDER_SERVICE_NAME,
-            path=ORDER_DETAILS_PATH,
-            json_data=body,
-            headers=headers,
-            timeout=httpx.Timeout(ORDER_API_TIMEOUT),
-        )
-        result = response.json()
+        result = await _do_query_order(tenant_id, order_no)
         return {
             "success": result.get("success", False),
             "data": result.get("data"),
@@ -63,11 +72,6 @@ async def query_order(
     except Exception as e:
         logger.error(f"订单查询异常: tenant={tenant_id}, error={e}")
         return {"success": False, "data": None, "message": "订单查询服务暂时不可用，请稍后重试或联系人工客服"}
-
-
-def _build_headers() -> dict[str, str]:
-    """构建请求头部"""
-    return {"Content-Type": "application/json"}
 
 
 def format_order_result(result: dict[str, Any]) -> str:

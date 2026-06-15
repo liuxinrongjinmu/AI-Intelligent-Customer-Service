@@ -47,6 +47,8 @@ def get_db():
 
 
 def init_db():
+    # 确保所有模型已导入，Base.metadata 才能识别
+    from backend.knowledge.sync_log import SyncLog  # noqa: F401
     Base.metadata.create_all(bind=engine)
     _ensure_indexes()
 

@@ -11,12 +11,35 @@ from backend.config import (
     USER_PROFILE_API_TIMEOUT,
     USER_PROFILE_SERVICE_NAME,
 )
-from backend.middleware.http_client import get_shared_client
 from backend.nacos.http_client import nacos_request
+from backend.utils.retry import retry_on_transient_error
 
 logger = logging.getLogger(__name__)
 
 USER_QUERY_PATH = "/api/v1/ext-merchant/user-query"
+
+
+@retry_on_transient_error(max_retries=2)
+async def _do_query_user_profile(tenant_id: str, user_id: str) -> dict[str, Any]:
+    """
+    执行用户画像查询 HTTP 请求（含重试）
+
+    :param tenant_id: 租户ID
+    :param user_id: 用户ID
+    :return: API 响应 JSON
+    """
+    body: dict[str, Any] = {"tenantId": tenant_id, "userId": user_id}
+    headers = {"Content-Type": "application/json"}
+
+    response = await nacos_request(
+        "POST",
+        service_name=USER_PROFILE_SERVICE_NAME,
+        path=USER_QUERY_PATH,
+        json_data=body,
+        headers=headers,
+        timeout=httpx.Timeout(USER_PROFILE_API_TIMEOUT),
+    )
+    return response.json()
 
 
 async def query_user_profile(
@@ -41,23 +64,7 @@ async def query_user_profile(
         }
 
     try:
-        body: dict[str, Any] = {
-            "tenantId": tenant_id,
-            "userId": user_id,
-        }
-
-        headers = {"Content-Type": "application/json"}
-
-        client = get_shared_client()
-        response = await nacos_request(
-            "POST",
-            service_name=USER_PROFILE_SERVICE_NAME,
-            path=USER_QUERY_PATH,
-            json_data=body,
-            headers=headers,
-            timeout=httpx.Timeout(USER_PROFILE_API_TIMEOUT),
-        )
-        result = response.json()
+        result = await _do_query_user_profile(tenant_id, user_id)
         return {
             "success": result.get("success", result.get("code", -1) == 0),
             "data": result.get("data"),

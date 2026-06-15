@@ -5,6 +5,7 @@ import asyncio
 import logging
 import pathlib
 import uuid
+import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -15,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.database import init_db
-from backend.config import HOST, PORT, validate_config, SWAGGER_SERVER_URL
+from backend.config import HOST, PORT, validate_config, SWAGGER_SERVER_URL, ENV
 
 # 请求体大小限制（防护大请求攻击）
 MAX_BODY_SIZE = 10 * 1024 * 1024  # 10MB
@@ -25,6 +26,7 @@ from backend.api.chat import router as chat_router
 from backend.api.stats import router as stats_router
 from backend.utils.sensitive_filter import install_sensitive_filter
 from backend.utils.request_id import request_id_var, get_request_id
+from backend.utils.metrics import mark_request_start, record_request, increment_active, decrement_active
 from backend.middleware.http_client import RateLimitMiddleware, close_shared_client
 from backend.agent.graph import close_agent
 
@@ -52,6 +54,28 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         response: Response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
         return response
+
+
+class MetricsMiddleware(BaseHTTPMiddleware):
+    """
+    指标采集中间件：记录所有 HTTP 请求的计数、延迟和活跃连接数
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        mark_request_start()
+        increment_active()
+        start = time.time()
+        try:
+            response = await call_next(request)
+            latency_ms = (time.time() - start) * 1000
+            record_request(request.method, request.url.path, response.status_code, latency_ms)
+            return response
+        except Exception:
+            latency_ms = (time.time() - start) * 1000
+            record_request(request.method, request.url.path, 500, latency_ms)
+            raise
+        finally:
+            decrement_active()
 
 
 class BodySizeLimitMiddleware(BaseHTTPMiddleware):
@@ -88,6 +112,10 @@ async def lifespan(app: FastAPI):
         logger.warning("配置校验存在错误，请尽快修复")
     logger.info("初始化数据库...")
     init_db()
+    # 数据库自动备份
+    from backend.utils.backup import start_backup_scheduler, backup_now
+    backup_now()  # 启动时立即备份一次
+    start_backup_scheduler()
     # Nacos 服务注册
     from backend.nacos.registry import register_service, heartbeat_loop
     registered = await register_service()
@@ -96,6 +124,8 @@ async def lifespan(app: FastAPI):
     logger.info("应用启动完成")
     yield
     # 关闭时清理
+    from backend.utils.backup import stop_backup_scheduler
+    stop_backup_scheduler()
     from backend.nacos.registry import deregister_service
     await deregister_service()
     await close_agent()
@@ -109,8 +139,10 @@ async def lifespan(app: FastAPI):
     logger.info("应用关闭")
 
 
-docs_url = "/docs" if os.getenv("ENABLE_DOCS", "1") == "1" else None
-redoc_url = "/redoc" if os.getenv("ENABLE_DOCS", "1") == "1" else None
+# 生产环境强制关闭 API 文档
+_docs_enabled = os.getenv("ENABLE_DOCS", "1") == "1" and ENV != "prod"
+docs_url = "/docs" if _docs_enabled else None
+redoc_url = "/redoc" if _docs_enabled else None
 
 app = FastAPI(
     title="聚宝赞AI智能客服Agent",
@@ -140,6 +172,7 @@ app.add_middleware(
 
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(BodySizeLimitMiddleware)
+app.add_middleware(MetricsMiddleware)
 app.add_middleware(RateLimitMiddleware, default_limit=120, chat_limit=60)
 
 app.include_router(tenant_router)
