@@ -183,9 +183,15 @@ def sync_all_faqs_for_tenant(db: Session, tenant_id: str):
     logger.info(f"租户 {tenant_id} 全量同步完成，共 {total} 条FAQ")
 
 
-def sync_document_to_chromadb(db: Session, doc_record: Document, chunks: list, tenant_id: str):
+def sync_document_to_chromadb(db: Session, doc_record: Document, chunks: list, tenant_id: str, kb_type: str = "rule"):
     """
     将文档切片同步到 ChromaDB
+
+    :param db: 数据库会话
+    :param doc_record: 文档记录
+    :param chunks: 文档切片列表
+    :param tenant_id: 租户ID
+    :param kb_type: 知识库类型（默认 rule，避免与 FAQ 混在同一 collection）
     """
     embedding_model = get_embedding_model()
 
@@ -213,7 +219,7 @@ def sync_document_to_chromadb(db: Session, doc_record: Document, chunks: list, t
 
     add_to_collection_sync(
         tenant_id=tenant_id,
-        kb_type="faq",
+        kb_type=kb_type,
         ids=ids,
         documents=documents,
         metadatas=metadatas,
@@ -223,14 +229,17 @@ def sync_document_to_chromadb(db: Session, doc_record: Document, chunks: list, t
     doc_record.chroma_ids = ",".join(ids)
     doc_record.chunk_count = len(chunks)
     db.commit()
-    logger.info(f"文档 #{doc_record.id} 已同步到 ChromaDB，{len(chunks)} 个切片")
+    logger.info(f"文档 #{doc_record.id} 已同步到 ChromaDB ({kb_type})，{len(chunks)} 个切片")
 
 
-def remove_document_from_chromadb(doc_record: Document):
+def remove_document_from_chromadb(doc_record: Document, kb_type: str = "rule"):
     """
     从 ChromaDB 删除文档所有切片
+
+    :param doc_record: 文档记录
+    :param kb_type: 知识库类型（需与写入时一致）
     """
     if doc_record.chroma_ids:
         ids = doc_record.chroma_ids.split(",")
-        delete_from_collection(doc_record.tenant_id, "faq", ids)
-        logger.info(f"文档 #{doc_record.id} 已从 ChromaDB 删除")
+        delete_from_collection(doc_record.tenant_id, kb_type, ids)
+        logger.info(f"文档 #{doc_record.id} 已从 ChromaDB ({kb_type}) 删除")

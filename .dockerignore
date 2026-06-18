@@ -27,6 +27,7 @@ chroma_db/
 *.swo
 
 # 测试与缓存
+tests/
 .pytest_cache/
 .mypy_cache/
 .coverage
@@ -38,6 +39,7 @@ htmlcov/
 temp_*.py
 
 # 文档与素材（不需要进入镜像）
+*.md
 ai-cs-materials/
 _backup_scripts/
 _*.py

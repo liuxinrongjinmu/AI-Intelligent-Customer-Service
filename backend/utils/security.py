@@ -1,8 +1,13 @@
 """
 安全防护模块：Prompt 注入检测 + 输出过滤 + 敏感词审核
 """
+import logging
+import os
 import re
 import unicodedata
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 MAX_MESSAGE_LENGTH = 4000
 
@@ -133,7 +138,8 @@ def validate_message(message: str) -> str:
     return message.strip()
 
 
-SENSITIVE_WORDS = [
+# 敏感词默认列表（当配置文件不存在时使用）
+_DEFAULT_SENSITIVE_WORDS = [
     "赌博", "博彩", "赌场", "六合彩", "彩票预测",
     "色情", "成人", "裸聊", "一夜情",
     "毒品", "大麻", "冰毒", "海洛因",
@@ -142,6 +148,39 @@ SENSITIVE_WORDS = [
     "诈骗", "钓鱼网站", "虚假中奖",
     "政治敏感", "反动", "暴恐",
 ]
+
+
+def _load_sensitive_words() -> list[str]:
+    """
+    从配置文件加载敏感词列表
+
+    配置文件路径：项目根目录 config/sensitive_words.txt
+    每行一个敏感词，# 开头为注释，空行忽略。
+    文件不存在时使用内置默认列表。
+
+    :return: 敏感词列表
+    """
+    config_path = Path(__file__).resolve().parent.parent.parent / "config" / "sensitive_words.txt"
+    if not config_path.exists():
+        logger.info(f"敏感词配置文件不存在，使用内置默认列表: {config_path}")
+        return list(_DEFAULT_SENSITIVE_WORDS)
+
+    words = []
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                words.append(line)
+        logger.info(f"从 {config_path} 加载了 {len(words)} 个敏感词")
+        return words if words else list(_DEFAULT_SENSITIVE_WORDS)
+    except Exception as e:
+        logger.error(f"加载敏感词配置文件失败，使用内置默认列表: {e}")
+        return list(_DEFAULT_SENSITIVE_WORDS)
+
+
+SENSITIVE_WORDS = _load_sensitive_words()
 
 
 def check_sensitive_content(text: str) -> tuple[bool, str]:

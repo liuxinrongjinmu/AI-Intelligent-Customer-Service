@@ -185,7 +185,7 @@
             console.error('发送消息失败:', e);
             clearTimeout(timeoutId);
             if (currentAIBubble) {
-                var errMsg = e.name === 'AbortError' ? '请求超时，请稍后重试' : '服务暂时不可用，请稍后重试';
+                const errMsg = e.name === 'AbortError' ? '请求超时，请稍后重试' : '服务暂时不可用，请稍后重试';
                 currentAIBubble.innerHTML = '<span style="color:#FF7675;">' + errMsg + '</span>';
             }
         } finally {

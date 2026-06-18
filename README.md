@@ -617,8 +617,13 @@ python -m pytest tests/ -v
 
 | 测试文件 | 覆盖模块 | 用例数 |
 |----------|----------|--------|
-| `test_security.py` | validate_message、detect_injection、check_sensitive_content、sanitize_output、Unicode 归一化 | 31 |
-| `test_routing.py` | route_by_intent、INTENT_HIERARCHY 完整性 | 13 |
+| `test_security.py` | validate_message、detect_injection、check_sensitive_content、sanitize_output、Unicode 归一化 | 50+ |
+| `test_routing.py` | route_by_intent、INTENT_HIERARCHY 完整性 | 14 |
+| `test_chat_schema.py` | ChatRequest 校验（session_id/user_id/message 边界值） | 15+ |
+| `test_config.py` | validate_config（errors/warnings 逻辑） | 5+ |
+| `test_core_modules.py` | auth、token_budget、response_cache、sensitive_filter | 40+ |
+| `test_gateway_auth.py` | IP白名单、CIDR网段、Header校验、IPv6 | 35+ |
+| `test_hybrid_search.py` | 向量检索、关键词匹配、RRF融合、降级策略 | 40+ |
 
 ### 命令行交互测试
 

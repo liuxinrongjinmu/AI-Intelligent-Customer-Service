@@ -47,27 +47,21 @@ class TestAuth:
         assert exc.value.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_admin_key_correct(self):
+    async def test_admin_key_correct(self, monkeypatch):
         """正确的 X-Admin-Key 应通过认证"""
         from unittest.mock import AsyncMock
-        import importlib
 
-        # 重新加载 auth 模块，确保使用 patch 后的值
         import backend.config
         import backend.utils.auth
 
-        original = backend.config.ADMIN_API_KEY
-        backend.config.ADMIN_API_KEY = "test-admin-key-12345"
-        backend.utils.auth.ADMIN_API_KEY = "test-admin-key-12345"
+        # 使用 monkeypatch 设置 ADMIN_API_KEY，测试结束自动恢复
+        monkeypatch.setattr(backend.config, "ADMIN_API_KEY", "test-admin-key-12345")
+        monkeypatch.setattr(backend.utils.auth, "ADMIN_API_KEY", "test-admin-key-12345")
 
-        try:
-            request = AsyncMock()
-            request.headers = {"X-Admin-Key": "test-admin-key-12345"}
-            result = await backend.utils.auth.verify_admin_key(request)
-            assert result == "admin_authed"
-        finally:
-            backend.config.ADMIN_API_KEY = original
-            backend.utils.auth.ADMIN_API_KEY = original
+        request = AsyncMock()
+        request.headers = {"X-Admin-Key": "test-admin-key-12345"}
+        result = await backend.utils.auth.verify_admin_key(request)
+        assert result == "admin_authed"
 
 
 # ==================== token_budget.py 测试 ====================

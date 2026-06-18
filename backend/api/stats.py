@@ -4,8 +4,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, Body
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, Query, Body, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from backend.database import get_db
@@ -15,18 +14,11 @@ from backend.models.conversation import Conversation, Message
 from backend.models.handoff import HandoffTicket
 from backend.models.feedback import Feedback
 from backend.utils.auth import verify_chat_api_key
+from backend.schemas.stats import FeedbackRequest
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/system", tags=["system"])
-
-
-class FeedbackRequest(BaseModel):
-    """提交反馈请求体"""
-    thread_id: str = Field(..., description="会话 thread_id")
-    rating: int = Field(..., ge=1, le=5, description="评分 1-5")
-    comment: str = Field("", description="反馈意见")
-    tenant_id: str = Field("", description="租户ID")
 
 
 @router.get("/health")
@@ -170,8 +162,10 @@ def submit_feedback(
     """提交对话满意度评价"""
     conv = db.query(Conversation).filter_by(thread_id=body.thread_id).first()
     if not conv:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "CONVERSATION_NOT_FOUND", "message": "会话不存在"}
+        )
 
     feedback = Feedback(
         tenant_id=body.tenant_id or conv.tenant_id,

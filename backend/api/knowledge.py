@@ -34,7 +34,7 @@ def _validate_kb_type(kb_type: str):
     if kb_type not in KB_COLLECTIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"无效的知识库类型: {kb_type}，支持: {', '.join(KB_COLLECTIONS)}"
+            detail={"code": "INVALID_KB_TYPE", "message": f"无效的知识库类型: {kb_type}，支持: {', '.join(KB_COLLECTIONS)}"}
         )
 
 
@@ -43,7 +43,10 @@ def _validate_tenant(tenant_id: str, db: Session):
     from backend.models.tenant import Tenant
     tenant = db.query(Tenant).filter_by(tenant_id=tenant_id, is_active=True).first()
     if not tenant:
-        raise HTTPException(status_code=404, detail=f"租户不存在: {tenant_id}")
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "TENANT_NOT_FOUND", "message": f"租户不存在: {tenant_id}"}
+        )
     return tenant
 
 
@@ -83,7 +86,10 @@ def sync_knowledge(
 
     VALID_SYNC_TYPES = {"full", "incremental"}
     if body.sync_type not in VALID_SYNC_TYPES:
-        raise HTTPException(status_code=400, detail=f"无效的同步类型: {body.sync_type}，仅支持 full/incremental")
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "INVALID_SYNC_TYPE", "message": f"无效的同步类型: {body.sync_type}，仅支持 full/incremental"}
+        )
 
     is_full = body.sync_type == "full"
     sync_type = "full" if is_full else "incremental"
