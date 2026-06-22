@@ -93,9 +93,10 @@ def main():
     """
     部署主流程：
       1. 拉取最新代码
-      2. 停止旧容器
-      3. 构建并启动新容器
-      4. 健康检查验证
+      2. 部署前数据库备份
+      3. 停止旧容器
+      4. 构建并启动新容器
+      5. 健康检查验证
     """
     deploy_path = os.getenv("DEPLOY_PATH", "/home/deploy/rag")
 
@@ -104,17 +105,25 @@ def main():
     # 1. 拉取代码
     run_cmd(ssh, f"cd {deploy_path} && git pull origin master")
 
-    # 2. 停止旧容器
+    # 2. 部署前备份 SQLite 数据库（防止部署失败导致数据丢失）
+    print("\n>>> 部署前数据库备份...")
+    run_cmd(ssh, f"cd {deploy_path} && if [ -f data/app.db ]; then cp data/app.db data/app_pre_deploy_$(date +%Y%m%d_%H%M%S).db && echo '备份成功' && ls -lh data/app_pre_deploy_*.db | tail -5; else echo '数据库文件不存在，跳过备份'; fi", timeout=30)
+    # 清理超过7天的旧备份
+    run_cmd(ssh, f"cd {deploy_path} && find data/ -name 'app_pre_deploy_*.db' -mtime +7 -delete 2>/dev/null; echo '旧备份清理完成'")
+
+    # 3. 停止旧容器
     run_cmd(ssh, f"cd {deploy_path} && docker compose down", timeout=60)
 
-    # 3. 构建 + 启动
+    # 4. 构建 + 启动
     code = run_cmd(ssh, f"cd {deploy_path} && docker compose up -d --build 2>&1", timeout=1800)
     if code != 0:
         print(f"\n[错误] Docker 构建失败，退出码: {code}")
+        print("[回滚] 正在重新启动旧容器...")
+        run_cmd(ssh, f"cd {deploy_path} && docker compose up -d 2>&1", timeout=120)
         ssh.close()
         sys.exit(1)
 
-    # 4. 等待启动 + 健康检查（带重试）
+    # 5. 等待启动 + 健康检查（带重试）
     time.sleep(15)
 
     port = os.getenv("DEPLOY_HOST_PORT", "8081")

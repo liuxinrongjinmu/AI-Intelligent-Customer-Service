@@ -61,4 +61,4 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD curl -fs -o /dev/null http://localhost:8080/api/v1/system/health
 
-CMD uvicorn backend.main:app --host 0.0.0.0 --port 8080 --workers $WORKERS
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
