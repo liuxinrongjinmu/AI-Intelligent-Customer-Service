@@ -66,8 +66,10 @@ def backup_now() -> str | None:
 def _cleanup_old_backups():
     """
     清理过期备份
+
+    策略：
     - 每小时备份：保留最近 MAX_HOURLY_BACKUPS 个
-    - 每日快照：保留最近 MAX_DAILY_BACKUPS 个
+    - 每日快照：每天保留第一个备份作为快照，保留最近 MAX_DAILY_BACKUPS 天
     """
     _ensure_backup_dir()
 
@@ -81,8 +83,24 @@ def _cleanup_old_backups():
         if len(backups) <= MAX_HOURLY_BACKUPS:
             return
 
-        # 保留最新的 MAX_HOURLY_BACKUPS 个
-        to_delete = backups[MAX_HOURLY_BACKUPS:]
+        # 保留最新的 MAX_HOURLY_BACKUPS 个每小时备份
+        hourly_keep = set(backups[:MAX_HOURLY_BACKUPS])
+
+        # 从剩余备份中，每天保留第一个作为每日快照
+        daily_keep = set()
+        seen_dates = set()
+        for f in backups[MAX_HOURLY_BACKUPS:]:
+            date_str = f.stem.split("_")[1][:8]  # app_YYYYMMDD_HHMMSS -> YYYYMMDD
+            if date_str not in seen_dates:
+                seen_dates.add(date_str)
+                daily_keep.add(f)
+
+        # 限制每日快照数量
+        if len(daily_keep) > MAX_DAILY_BACKUPS:
+            daily_keep = set(sorted(daily_keep, key=lambda p: p.stat().st_mtime, reverse=True)[:MAX_DAILY_BACKUPS])
+
+        # 删除既不在每小时保留也不在每日快照中的备份
+        to_delete = set(backups) - hourly_keep - daily_keep
         for f in to_delete:
             try:
                 f.unlink()

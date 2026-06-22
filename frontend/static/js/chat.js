@@ -17,6 +17,9 @@
     }
     let isStreaming = false;
     let currentAIBubble = null;
+    let lastUserMessage = '';          // 上一条用户消息（用于重试）
+    let hasReceivedAIReply = false;    // 是否已收到AI回复（控制快捷问题隐藏）
+    let selectedRating = 0;            // 当前选中的满意度评分
 
     const chatArea = document.getElementById('chatArea');
     const messageInput = document.getElementById('messageInput');
@@ -24,6 +27,23 @@
     const newSessionBtn = document.getElementById('newSessionBtn');
     const typingIndicator = document.getElementById('typingIndicator');
     const statusText = document.getElementById('statusText');
+    const quickQuestions = document.getElementById('quickQuestions');
+    const feedbackArea = document.getElementById('feedbackArea');
+    const feedbackStars = document.getElementById('feedbackStars');
+    const feedbackComment = document.getElementById('feedbackComment');
+    const feedbackSubmit = document.getElementById('feedbackSubmit');
+
+    // 状态文案映射表
+    const STATUS_MAP = {
+        'classify_intent': '正在分析问题...',
+        'retrieve_knowledge': '正在查找知识库...',
+        'generate_answer': '正在生成回答...',
+        'greeting_answer': '正在响应...',
+        'order_query_node': '正在查询订单...',
+        'logistics_query_node': '正在查询物流...',
+        'complaint_node': '正在转接人工...',
+        'human_service_node': '正在转接人工...'
+    };
 
     function scrollToBottom() {
         chatArea.scrollTop = chatArea.scrollHeight;
@@ -61,46 +81,102 @@
         return 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10);
     }
 
-    async function loadHistory() {
-        if (!sessionId) return;
-        try {
-            const resp = await fetch(`/api/v1/chat/${TID}/history/${sessionId}?user_id=${encodeURIComponent(USER_ID)}`, {
-                headers: {}
-            });
-            if (!resp.ok) return;
-            const data = await resp.json();
-            chatArea.innerHTML = '';
-            for (const msg of data.messages) {
-                createMessageBubble(msg.role, msg.content);
-            }
-            scrollToBottom();
-        } catch (e) {
-            console.error('加载历史失败:', e);
-        }
+    /**
+     * 显示快捷问题引导区域
+     */
+    function showQuickQuestions() {
+        if (quickQuestions) quickQuestions.classList.add('visible');
     }
 
-    async function sendMessage() {
-        const message = messageInput.value.trim();
-        if (!message || isStreaming) return;
+    /**
+     * 隐藏快捷问题引导区域
+     */
+    function hideQuickQuestions() {
+        if (quickQuestions) quickQuestions.classList.remove('visible');
+    }
 
-        // 确保 session_id 存在（首次对话自动生成）
-        if (!sessionId) {
-            sessionId = generateSessionId();
-            localStorage.setItem(`session_${TID}`, sessionId);
+    /**
+     * 显示满意度评价区域并重置表单
+     */
+    function showFeedbackArea() {
+        if (!feedbackArea) return;
+        selectedRating = 0;
+        if (feedbackComment) feedbackComment.value = '';
+        if (feedbackStars) {
+            feedbackStars.querySelectorAll('.feedback-star').forEach(function(s) {
+                s.classList.remove('active');
+            });
         }
+        if (feedbackSubmit) {
+            feedbackSubmit.disabled = false;
+            feedbackSubmit.textContent = '提交评价';
+        }
+        feedbackArea.classList.add('visible');
+        scrollToBottom();
+    }
 
+    /**
+     * 隐藏满意度评价区域
+     */
+    function hideFeedbackArea() {
+        if (feedbackArea) feedbackArea.classList.remove('visible');
+    }
+
+    /**
+     * 在AI消息旁挂载重试按钮
+     * :param messageDiv: AI消息包裹元素（.message.assistant）
+     * :param message: 需要重试发送的用户消息文本
+     * :param aiBubble: AI气泡DOM元素
+     */
+    function attachRetryButton(messageDiv, message, aiBubble) {
+        if (!messageDiv) return;
+        // 先移除已有重试按钮，避免重复
+        messageDiv.querySelectorAll('.message-retry').forEach(function(b) { b.remove(); });
+
+        const retryBtn = document.createElement('button');
+        retryBtn.className = 'message-retry';
+        retryBtn.type = 'button';
+        retryBtn.textContent = '重试';
+        retryBtn.addEventListener('click', async function() {
+            if (isStreaming) return;
+            isStreaming = true;
+            sendBtn.disabled = true;
+            retryBtn.classList.add('loading');
+            retryBtn.textContent = '重试中...';
+            if (aiBubble) aiBubble.innerHTML = '';
+            showTyping();
+            const ok = await streamAssistantResponse(message, aiBubble, messageDiv);
+            if (ok) {
+                // 成功后移除重试按钮
+                messageDiv.querySelectorAll('.message-retry').forEach(function(b) { b.remove(); });
+            } else {
+                // 失败时 streamAssistantResponse 已挂载新的重试按钮；
+                // 兜底：重置可能残留的 loading 状态按钮
+                const loadingBtn = messageDiv.querySelector('.message-retry.loading');
+                if (loadingBtn) {
+                    loadingBtn.classList.remove('loading');
+                    loadingBtn.textContent = '重试';
+                }
+            }
+            isStreaming = false;
+            sendBtn.disabled = false;
+            hideTyping();
+            messageInput.focus();
+        });
+        messageDiv.appendChild(retryBtn);
+    }
+
+    /**
+     * 流式获取AI回复并更新气泡
+     * :param message: 用户消息文本
+     * :param aiBubble: AI气泡DOM元素
+     * :param messageDiv: 包裹AI消息的DOM元素（用于挂载重试按钮）
+     * :return: Promise<boolean> 是否成功完成（收到done事件视为成功）
+     */
+    async function streamAssistantResponse(message, aiBubble, messageDiv) {
         let streamTimeoutId = null;
-        isStreaming = true;
-        sendBtn.disabled = true;
-        messageInput.value = '';
-        createMessageBubble('user', message);
-        showTyping();
-
-        const currentAIBubbleDiv = document.createElement('div');
-        currentAIBubbleDiv.className = 'message assistant';
-        currentAIBubbleDiv.innerHTML = '<div class="message-avatar">AI</div><div class="message-bubble ai-bubble"></div>';
-        chatArea.appendChild(currentAIBubbleDiv);
-        currentAIBubble = currentAIBubbleDiv.querySelector('.ai-bubble');
+        let fullText = '';
+        let succeeded = false;
 
         try {
             var abortController = new AbortController();
@@ -123,12 +199,11 @@
             const reader = resp.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
-            let fullText = '';
             let lastDataTime = Date.now();
             streamTimeoutId = setInterval(function() {
                 if (Date.now() - lastDataTime > 60000) {
-                    if (currentAIBubble && !fullText) {
-                        currentAIBubble.innerHTML = '<span style="color:#FF7675;">服务响应超时，请稍后重试</span>';
+                    if (aiBubble && !fullText) {
+                        aiBubble.innerHTML = '<span style="color:#FF7675;">服务响应超时，请稍后重试</span>';
                     }
                     reader.cancel();
                 }
@@ -154,27 +229,41 @@
                         if (event.type === 'text') {
                             hideTyping();
                             fullText += event.content;
-                            if (currentAIBubble) {
-                                currentAIBubble.innerHTML = escapeHtml(fullText).replace(/\n/g, '<br>');
+                            if (aiBubble) {
+                                aiBubble.innerHTML = escapeHtml(fullText).replace(/\n/g, '<br>');
+                            }
+                            // 收到第一条AI回复后隐藏快捷问题
+                            if (!hasReceivedAIReply) {
+                                hasReceivedAIReply = true;
+                                hideQuickQuestions();
                             }
                             scrollToBottom();
                         } else if (event.type === 'status') {
                             if (event.action === 'start') {
                                 if (statusText) {
-                                    statusText.textContent = { 'classify_intent': '正在分析问题...', 'retrieve_knowledge': '正在查找知识库...', 'generate_answer': '正在生成回答...', 'greeting_answer': '正在响应...', 'order_query_node': '正在查询订单...', 'logistics_query_node': '正在查询物流...', 'complaint_node': '正在转接人工...', 'human_service_node': '正在转接人工...' }[event.node] || '处理中...';
+                                    statusText.textContent = STATUS_MAP[event.node] || '处理中...';
                                 }
                             } else if (event.action === 'end') {
                                 if (statusText) statusText.textContent = '';
                             }
                         } else if (event.type === 'done') {
+                            succeeded = true;
                             if (event.session_id) {
                                 sessionId = event.session_id;
                                 localStorage.setItem(`session_${TID}`, sessionId);
                             }
-                        } else if (event.type === 'error') {
-                            if (currentAIBubble) {
-                                currentAIBubble.innerHTML = `<span style="color:#FF7675;">${escapeHtml(event.message)}</span>`;
+                            // 成功完成后移除重试按钮
+                            if (messageDiv) {
+                                messageDiv.querySelectorAll('.message-retry').forEach(function(b) { b.remove(); });
                             }
+                            // 聊天结束后显示满意度评价区域
+                            showFeedbackArea();
+                        } else if (event.type === 'error') {
+                            if (aiBubble) {
+                                aiBubble.innerHTML = `<span style="color:#FF7675;">${escapeHtml(event.message)}</span>`;
+                            }
+                            // AI回复失败时显示重试按钮
+                            attachRetryButton(messageDiv, message, aiBubble);
                         }
                     } catch (e) {
                         console.warn('SSE解析异常:', e, trimmed.slice(0, 100));
@@ -184,13 +273,78 @@
         } catch (e) {
             console.error('发送消息失败:', e);
             clearTimeout(timeoutId);
-            if (currentAIBubble) {
+            if (aiBubble) {
                 const errMsg = e.name === 'AbortError' ? '请求超时，请稍后重试' : '服务暂时不可用，请稍后重试';
-                currentAIBubble.innerHTML = '<span style="color:#FF7675;">' + errMsg + '</span>';
+                aiBubble.innerHTML = '<span style="color:#FF7675;">' + errMsg + '</span>';
             }
+            attachRetryButton(messageDiv, message, aiBubble);
         } finally {
             clearTimeout(timeoutId);
             if (streamTimeoutId) clearInterval(streamTimeoutId);
+        }
+        return succeeded;
+    }
+
+    async function loadHistory() {
+        if (!sessionId) {
+            // 新会话：展示快捷问题引导
+            showQuickQuestions();
+            return;
+        }
+        try {
+            const resp = await fetch(`/api/v1/chat/${TID}/history/${sessionId}?user_id=${encodeURIComponent(USER_ID)}`, {
+                headers: {}
+            });
+            if (!resp.ok) {
+                showQuickQuestions();
+                return;
+            }
+            const data = await resp.json();
+            chatArea.innerHTML = '';
+            if (data.messages && data.messages.length) {
+                for (const msg of data.messages) {
+                    createMessageBubble(msg.role, msg.content);
+                }
+                hasReceivedAIReply = true;
+                scrollToBottom();
+            } else {
+                // 空会话：展示快捷问题引导
+                showQuickQuestions();
+            }
+        } catch (e) {
+            console.error('加载历史失败:', e);
+            showQuickQuestions();
+        }
+    }
+
+    async function sendMessage() {
+        const message = messageInput.value.trim();
+        if (!message || isStreaming) return;
+
+        // 确保 session_id 存在（首次对话自动生成）
+        if (!sessionId) {
+            sessionId = generateSessionId();
+            localStorage.setItem(`session_${TID}`, sessionId);
+        }
+
+        // 发送下一条消息时自动隐藏满意度评价区域
+        hideFeedbackArea();
+
+        isStreaming = true;
+        sendBtn.disabled = true;
+        messageInput.value = '';
+        createMessageBubble('user', message);
+        showTyping();
+
+        const currentAIBubbleDiv = document.createElement('div');
+        currentAIBubbleDiv.className = 'message assistant';
+        currentAIBubbleDiv.innerHTML = '<div class="message-avatar">AI</div><div class="message-bubble ai-bubble"></div>';
+        chatArea.appendChild(currentAIBubbleDiv);
+        currentAIBubble = currentAIBubbleDiv.querySelector('.ai-bubble');
+
+        try {
+            await streamAssistantResponse(message, currentAIBubble, currentAIBubbleDiv);
+        } finally {
             isStreaming = false;
             sendBtn.disabled = false;
             hideTyping();
@@ -213,8 +367,77 @@
         localStorage.setItem(`session_${TID}`, sessionId);
         chatArea.innerHTML = '';
         if (statusText) statusText.textContent = '';
+        hasReceivedAIReply = false;
+        hideFeedbackArea();
+        // 新会话展示快捷问题引导
+        showQuickQuestions();
         messageInput.focus();
     });
+
+    // 快捷问题按钮点击：自动填入输入框并发送
+    if (quickQuestions) {
+        quickQuestions.addEventListener('click', function(e) {
+            const btn = e.target.closest('.quick-question-btn');
+            if (!btn) return;
+            const q = btn.getAttribute('data-q');
+            if (!q) return;
+            messageInput.value = q;
+            sendMessage();
+        });
+    }
+
+    // 满意度评分星星点击
+    if (feedbackStars) {
+        feedbackStars.addEventListener('click', function(e) {
+            const star = e.target.closest('.feedback-star');
+            if (!star) return;
+            selectedRating = parseInt(star.getAttribute('data-value'), 10);
+            feedbackStars.querySelectorAll('.feedback-star').forEach(function(s) {
+                if (parseInt(s.getAttribute('data-value'), 10) <= selectedRating) {
+                    s.classList.add('active');
+                } else {
+                    s.classList.remove('active');
+                }
+            });
+        });
+    }
+
+    // 满意度评价提交
+    if (feedbackSubmit) {
+        feedbackSubmit.addEventListener('click', async function() {
+            /**
+             * 提交满意度评价到后端
+             */
+            if (!selectedRating) {
+                alert('请先选择评分');
+                return;
+            }
+            feedbackSubmit.disabled = true;
+            feedbackSubmit.textContent = '提交中...';
+            try {
+                const resp = await fetch('/api/v1/system/feedback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        thread_id: sessionId,
+                        rating: selectedRating,
+                        comment: feedbackComment ? feedbackComment.value : '',
+                        tenant_id: String(TID)
+                    })
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(function() { return {}; });
+                    throw new Error(err.detail || '提交失败');
+                }
+                feedbackSubmit.textContent = '感谢您的评价！';
+                setTimeout(function() { hideFeedbackArea(); }, 2000);
+            } catch (e) {
+                alert('评价提交失败：' + e.message);
+                feedbackSubmit.disabled = false;
+                feedbackSubmit.textContent = '提交评价';
+            }
+        });
+    }
 
     loadHistory();
     messageInput.focus();

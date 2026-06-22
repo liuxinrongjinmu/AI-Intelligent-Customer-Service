@@ -5,6 +5,8 @@ import re
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document as LCDocument
 
+from backend.config import DOC_CHUNK_SIZE, DOC_CHUNK_OVERLAP
+
 # 常见的 PDF 导出水印/页眉/页脚噪声模式
 _NOISE_PATTERNS = [
     re.compile(r"百度文库\s*[-—–]\s*好好学习[，,]\s*天天向上\s*"),
@@ -26,11 +28,15 @@ def clean_text(text: str) -> str:
 
 
 def get_text_splitter(
-    chunk_size: int = 600,
-    chunk_overlap: int = 120
+    chunk_size: int = DOC_CHUNK_SIZE,
+    chunk_overlap: int = DOC_CHUNK_OVERLAP
 ) -> RecursiveCharacterTextSplitter:
     """
     获取中文友好的文本切片器
+
+    :param chunk_size: 切片大小（字符数），默认从 config 读取
+    :param chunk_overlap: 切片重叠（字符数），默认从 config 读取
+    :return: RecursiveCharacterTextSplitter 实例
     """
     return RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,

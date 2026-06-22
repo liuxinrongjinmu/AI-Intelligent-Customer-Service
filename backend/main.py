@@ -17,6 +17,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.database import init_db
 from backend.config import HOST, PORT, validate_config, SWAGGER_SERVER_URL, ENV
+from backend.utils.json_logger import setup_logging
 
 # 请求体大小限制（防护大请求攻击）
 MAX_BODY_SIZE = 10 * 1024 * 1024  # 10MB
@@ -32,10 +33,8 @@ from backend.agent.graph import close_agent
 
 import os
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+# 根据环境配置日志格式（生产环境 JSON，开发环境文本）
+setup_logging(ENV)
 install_sensitive_filter()
 logger = logging.getLogger(__name__)
 

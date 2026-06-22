@@ -182,3 +182,221 @@
     padding: 4px 0;
     min-height: 20px;
 }
+
+/* ========== 满意度评价区域 ========== */
+.feedback-area {
+    display: none;
+    margin: 0 16px 12px;
+    padding: 16px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    flex-shrink: 0;
+}
+.feedback-area.visible {
+    display: block;
+}
+.feedback-title {
+    font-size: 14px;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 10px;
+    color: var(--text);
+}
+.feedback-stars {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+.feedback-star {
+    font-size: 28px;
+    line-height: 1;
+    color: #D8D8D8;
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    transition: color 0.15s, transform 0.1s;
+}
+.feedback-star:hover {
+    transform: scale(1.1);
+}
+.feedback-star.active {
+    color: #FFB400;
+}
+.feedback-comment {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 60px;
+    max-height: 120px;
+    outline: none;
+    font-family: inherit;
+    margin-bottom: 10px;
+}
+.feedback-comment:focus {
+    border-color: var(--primary);
+}
+.feedback-submit {
+    width: 100%;
+    padding: 10px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+.feedback-submit:hover {
+    opacity: 0.9;
+}
+.feedback-submit:disabled {
+    background: var(--border);
+    cursor: not-allowed;
+}
+
+/* ========== 快捷问题引导 ========== */
+.quick-questions {
+    display: none;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    padding: 8px 16px 12px;
+    flex-shrink: 0;
+}
+.quick-questions.visible {
+    display: flex;
+}
+.quick-question-btn {
+    padding: 7px 14px;
+    background: var(--white);
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    border-radius: 18px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.quick-question-btn:hover {
+    background: var(--primary);
+    color: white;
+}
+
+/* ========== 消息重试按钮 ========== */
+.message-retry {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    padding: 4px 12px;
+    background: var(--white);
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    border-radius: 12px;
+    font-size: 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+    align-self: center;
+    transition: background 0.15s, color 0.15s;
+}
+.message-retry:hover {
+    background: var(--primary);
+    color: white;
+}
+.message-retry.loading {
+    color: var(--text-muted);
+    border-color: var(--border);
+    background: var(--white);
+    cursor: not-allowed;
+}
+.message-retry.loading::before {
+    content: '';
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border: 1.5px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: retrySpin 0.8s linear infinite;
+}
+@keyframes retrySpin {
+    to { transform: rotate(360deg); }
+}
+
+/* ========== 移动端适配（max-width: 768px） ========== */
+@media (max-width: 768px) {
+    .chat-container {
+        max-width: 100%;
+        width: 100%;
+    }
+    .chat-navbar {
+        padding: 10px 12px;
+    }
+    .chat-navbar-title {
+        font-size: 16px;
+    }
+    /* 隐藏不必要的装饰元素 */
+    .chat-navbar-title .ai-badge {
+        display: none;
+    }
+    .chat-area {
+        padding: 12px;
+        gap: 12px;
+    }
+    .message {
+        max-width: 92%;
+    }
+    .message-bubble {
+        font-size: 14px;
+        padding: 10px 12px;
+    }
+    .message-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 12px;
+    }
+    .typing-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 12px;
+    }
+    .chat-input-area {
+        padding: 10px 12px;
+    }
+    .chat-input {
+        font-size: 14px;
+        padding: 12px 16px;
+        min-height: 44px;
+    }
+    /* 按钮触摸友好（最小44px高） */
+    .btn-send {
+        width: 44px;
+        height: 44px;
+        min-height: 44px;
+    }
+    .btn-new-session {
+        min-height: 44px;
+        padding: 8px 12px;
+    }
+    .feedback-area {
+        margin: 0 12px 10px;
+        padding: 12px;
+    }
+    .feedback-submit {
+        min-height: 44px;
+    }
+    .quick-questions {
+        padding: 8px 12px 10px;
+    }
+    .quick-question-btn {
+        min-height: 36px;
+    }
+}

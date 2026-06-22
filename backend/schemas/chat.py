@@ -25,6 +25,20 @@ class ChatRequest(BaseModel):
     :param user_name: 消费者姓名，默认"匿名用户"
     :param channel: 来源渠道，默认"unknown"
     """
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "message": "我的订单什么时候发货？",
+                    "session_id": "sess_20240101_001",
+                    "user_id": "user_10086",
+                    "user_name": "张三",
+                    "channel": "h5",
+                }
+            ]
+        }
+    }
+
     message: str = Field(..., min_length=1, max_length=4000, description="消费者消息内容")
     session_id: str = Field(..., description="会话 ID，聚宝赞端生成并管理")
     user_id: str = Field(..., description="消费者用户 ID")

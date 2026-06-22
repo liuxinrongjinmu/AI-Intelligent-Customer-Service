@@ -36,6 +36,20 @@ class KnowledgeSyncRequest(BaseModel):
     """
     知识库同步请求（全量/增量）
     """
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "sync_type": "full",
+                    "items": [
+                        {"id": "faq_001", "content": "退货政策是什么？\n7天无理由退货，商品需保持原包装完好", "metadata": {"category": "售后"}},
+                        {"id": "faq_002", "content": "发货时间\n下单后24小时内发货", "metadata": {"category": "物流"}}
+                    ]
+                }
+            ]
+        }
+    }
+
     items: list[KnowledgeItem] = Field(..., min_length=1, max_length=1000, description="知识条目列表")
     sync_type: Literal["full", "incremental"] = Field(default="full", description="同步类型：full=全量覆盖，incremental=增量追加")
 
@@ -44,6 +58,17 @@ class KnowledgeBatchRequest(BaseModel):
     """
     知识库批量操作请求（增量增删，支持单条删除）
     """
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "add": [{"id": "faq_new_001", "content": "新FAQ内容", "metadata": {}}],
+                    "delete_ids": ["faq_old_001"]
+                }
+            ]
+        }
+    }
+
     add: list[KnowledgeItem] = Field(default_factory=list, max_length=1000, description="新增/更新的知识条目")
     delete_ids: list[str] = Field(default_factory=list, max_length=1000, description="要删除的文档ID列表（传入单个ID即可实现单条删除）")
 
