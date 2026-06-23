@@ -22,19 +22,6 @@ INTENT_HIERARCHY = {
         },
         "tool_chain": ["transfer_to_human"],
     },
-    "refund_operation": {
-        "label": "售后操作",
-        "priority": 2,
-        "sub_types": {
-            "refund_only": "仅退款（未发货）",
-            "return_refund": "退货退款（已发货）",
-            "exchange": "换货",
-            "repair": "维修",
-            "refund_progress": "退款进度查询",
-            "refund_confirmed": "确认执行退款",
-        },
-        "tool_chain": ["query_order", "process_refund"],
-    },
     "order_query": {
         "label": "订单查询",
         "priority": 3,
@@ -164,5 +151,3 @@ class AgentState(TypedDict):
     current_order_id: NotRequired[str]
     current_product_id: NotRequired[str]
     ai_failed_count: NotRequired[int]
-
-    pending_confirmation: NotRequired[dict]

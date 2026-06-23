@@ -1,8 +1,6 @@
-"""
-Prometheus 抓取配置
-
-监控 kefu-agent 应用的运行指标
-"""
+# Prometheus 抓取配置
+#
+# 监控 kefu-agent 应用的运行指标
 global:
   scrape_interval: 15s      # 每15秒抓取一次
   evaluation_interval: 15s  # 每15秒评估一次告警规则

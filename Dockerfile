@@ -1,5 +1,5 @@
 # ============ Builder 阶段：编译 C 扩展 ============
-FROM python:3.12-slim AS builder
+FROM docker.m.daocloud.io/library/python:3.12-slim AS builder
 
 WORKDIR /app
 
@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir -r requirements-lock.txt \
     -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 # ============ Runtime 阶段：精简运行镜像 ============
-FROM python:3.12-slim
+FROM docker.m.daocloud.io/library/python:3.12-slim
 
 WORKDIR /app
 

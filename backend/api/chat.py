@@ -166,32 +166,68 @@ async def chat_stream(
         full_answer = ""
         final_intent = ""
         request_id = get_request_id()
-        save_db = SessionLocal()
+        # 复用请求级 DB 会话（由 get_db 依赖注入，StreamingResponse 完成后才清理）
+        # 避免创建独立 SessionLocal 导致跨库/跨事务问题
+        save_db = db
         # 只有最终输出节点才更新 full_answer，避免中间节点覆盖
         final_output_nodes = {
             "generate_answer", "greeting_answer", "order_query_node",
             "complaint_node", "human_service_node", "product_query_node",
-            "coupon_query_node", "account_query_node", "refund_operation_node",
+            "coupon_query_node", "account_query_node",
         }
+        # 标记当前最终输出节点是否已通过 messages 模式流式输出 token
+        has_streamed = False
         try:
-            astream_iter = agent.astream(input_state, config=config)
+            # 使用 stream_mode=["updates", "messages"] 实现真流式：
+            # - updates: 节点完成时输出完整 dict（含 final_answer / intent）
+            # - messages: LLM token 级别实时推送（仅 streaming=True 的 LLM 调用）
+            astream_iter = agent.astream(input_state, config=config, stream_mode=["updates", "messages"])
+            # 使用绝对截止时间实现真正的总超时（而非 per-iteration 超时）
+            import time as _time
+            deadline = _time.monotonic() + SSE_TOTAL_TIMEOUT
             while True:
+                remaining = deadline - _time.monotonic()
+                if remaining <= 0:
+                    raise asyncio.TimeoutError(f"SSE 总超时({SSE_TOTAL_TIMEOUT}s)")
                 try:
-                    chunk = await asyncio.wait_for(
+                    mode, data = await asyncio.wait_for(
                         astream_iter.__anext__(),
-                        timeout=SSE_TOTAL_TIMEOUT,
+                        timeout=remaining,
                     )
                 except StopAsyncIteration:
                     break
-                for node_name, node_output in chunk.items():
-                    yield f"data: {json.dumps({'type': 'status', 'node': node_name, 'action': 'start'}, ensure_ascii=False)}\n\n"
-                    if isinstance(node_output, dict):
-                        if "final_answer" in node_output and node_name in final_output_nodes:
-                            full_answer = node_output["final_answer"]
-                            yield f"data: {json.dumps({'type': 'text', 'content': full_answer}, ensure_ascii=False)}\n\n"
-                        if "intent" in node_output:
-                            final_intent = node_output["intent"]
-                    yield f"data: {json.dumps({'type': 'status', 'node': node_name, 'action': 'end'}, ensure_ascii=False)}\n\n"
+
+                if mode == "messages":
+                    # LLM token 流：data 为 (message_chunk, metadata)
+                    chunk, metadata = data
+                    node = metadata.get("langgraph_node", "") if isinstance(metadata, dict) else ""
+                    # 跳过意图分类节点的 token（不推送给前端）
+                    if node == "classify_intent":
+                        continue
+                    content = chunk.content if hasattr(chunk, 'content') else str(chunk)
+                    if content:
+                        has_streamed = True
+                        yield f"data: {json.dumps({'type': 'text', 'content': content}, ensure_ascii=False)}\n\n"
+
+                elif mode == "updates":
+                    # 防御 data 非 dict 时 .items() 崩溃
+                    if not isinstance(data, dict):
+                        logger.warning(f"updates 模式收到非 dict 数据: {type(data)}")
+                        continue
+                    for node_name, node_output in data.items():
+                        yield f"data: {json.dumps({'type': 'status', 'node': node_name, 'action': 'start'}, ensure_ascii=False)}\n\n"
+                        if isinstance(node_output, dict):
+                            if "final_answer" in node_output and node_name in final_output_nodes:
+                                full_answer = node_output["final_answer"]
+                                # 非流式节点（订单/优惠券/账户等 API 结果）未通过 messages 推送 token
+                                # 需要将完整答案作为文本事件发送
+                                if not has_streamed:
+                                    yield f"data: {json.dumps({'type': 'text', 'content': full_answer}, ensure_ascii=False)}\n\n"
+                                # 重置标记，为下一个节点准备
+                                has_streamed = False
+                            if "intent" in node_output:
+                                final_intent = node_output["intent"]
+                        yield f"data: {json.dumps({'type': 'status', 'node': node_name, 'action': 'end'}, ensure_ascii=False)}\n\n"
 
             if not full_answer:
                 full_answer = "（AI 未能生成有效回复）"
@@ -205,7 +241,7 @@ async def chat_stream(
             )
             save_db.add(ai_msg)
 
-            # 原子更新 message_count，AI回复也计入（+1用户 +1 AI = +2）
+            # 原子更新 message_count， AI回复也计入（+1用户 +1 AI = +2）
             save_db.query(Conversation).filter_by(id=conv_id).update(
                 {"message_count": Conversation.message_count + 2},
                 synchronize_session="fetch"
@@ -228,8 +264,7 @@ async def chat_stream(
             except Exception as rollback_e:
                 logger.warning(f"SSE回滚失败: {rollback_e}")
             yield f"data: {json.dumps({'type': 'error', 'code': 'INTERNAL_ERROR', 'message': '服务暂时不可用，请稍后重试'}, ensure_ascii=False)}\n\n"
-        finally:
-            save_db.close()
+        # save_db 由 get_db 依赖统一关闭，此处不再手动 close
 
     return StreamingResponse(
         event_generator(),

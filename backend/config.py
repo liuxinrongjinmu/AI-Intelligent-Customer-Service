@@ -23,6 +23,12 @@ SQLITE_PATH = os.getenv("SQLITE_PATH", "data/app.db")
 CHROMA_PATH = os.getenv("CHROMA_PATH", "data/chroma_db")
 CHECKPOINT_PATH = os.getenv("CHECKPOINT_PATH", "data/checkpoints.db")
 
+# 业务数据库连接串：配置后使用 PostgreSQL，留空则回退到 SQLite（SQLITE_PATH）
+# 示例：postgresql://user:password@localhost:5432/kefu_agent
+DATABASE_URL: str = os.getenv("DATABASE_URL", "").strip()
+# 是否启用数据库外键约束（PostgreSQL 默认启用；SQLite 默认关闭，此处统一在连接层开启）
+ENABLE_FOREIGN_KEYS: bool = os.getenv("ENABLE_FOREIGN_KEYS", "1") == "1"
+
 RETRIEVAL_TOP_K = int(os.getenv("RETRIEVAL_TOP_K", "5"))
 RETRIEVAL_THRESHOLD = float(os.getenv("RETRIEVAL_THRESHOLD", "0.2"))
 MAX_HISTORY_TURNS = int(os.getenv("MAX_HISTORY_TURNS", "10"))
@@ -77,7 +83,6 @@ SERVICE_PORT: int = int(os.getenv("SERVICE_PORT", str(PORT)))
 ORDER_API_TIMEOUT = int(os.getenv("ORDER_API_TIMEOUT", "10"))
 LOGISTICS_API_TIMEOUT = int(os.getenv("LOGISTICS_API_TIMEOUT", "10"))
 PRODUCT_API_TIMEOUT = int(os.getenv("PRODUCT_API_TIMEOUT", "10"))
-REFUND_API_TIMEOUT = int(os.getenv("REFUND_API_TIMEOUT", "10"))
 COUPON_API_TIMEOUT = int(os.getenv("COUPON_API_TIMEOUT", "10"))
 USER_PROFILE_API_TIMEOUT = int(os.getenv("USER_PROFILE_API_TIMEOUT", "10"))
 
@@ -88,9 +93,14 @@ MERCHANT_SERVICE_NAME: str = os.getenv("MERCHANT_SERVICE_NAME", "merchant-servic
 ORDER_SERVICE_NAME: str = os.getenv("ORDER_SERVICE_NAME", MERCHANT_SERVICE_NAME)
 PRODUCT_SERVICE_NAME: str = os.getenv("PRODUCT_SERVICE_NAME", MERCHANT_SERVICE_NAME)
 LOGISTICS_SERVICE_NAME: str = os.getenv("LOGISTICS_SERVICE_NAME", MERCHANT_SERVICE_NAME)
-REFUND_SERVICE_NAME: str = os.getenv("REFUND_SERVICE_NAME", MERCHANT_SERVICE_NAME)
 COUPON_SERVICE_NAME: str = os.getenv("COUPON_SERVICE_NAME", MERCHANT_SERVICE_NAME)
 USER_PROFILE_SERVICE_NAME: str = os.getenv("USER_PROFILE_SERVICE_NAME", MERCHANT_SERVICE_NAME)
+
+# ==================== Redis 配置（限流与缓存） ====================
+REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "")
+# 限流窗口（秒）
+RATE_LIMIT_WINDOW: int = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
 
 def validate_config():
     """配置校验"""
@@ -102,6 +112,6 @@ def validate_config():
         warnings.append("建议配置 GATEWAY_IP_WHITELIST（Gateway/VPN 网段白名单）")
     if GATEWAY_IP_WHITELIST == "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16":
         warnings.append("GATEWAY_IP_WHITELIST 使用默认值（覆盖所有内网段），生产环境建议缩小为 Gateway 所在的具体网段")
-    if not ADMIN_API_KEY:
-        warnings.append("ADMIN_API_KEY 未配置，管理接口将无法使用")
+    if not ADMIN_API_KEY or ADMIN_API_KEY == "change-me-admin-key":
+        warnings.append("ADMIN_API_KEY 使用默认弱密钥，生产环境必须修改")
     return warnings, errors

@@ -14,7 +14,7 @@ import os
 import time
 
 from backend.retrieval.vector_store import (
-    clear_collection, add_to_collection_sync, delete_from_collection
+    clear_collection, add_to_collection_sync, delete_from_collection, get_collection
 )
 from backend.retrieval.embedding import get_embedding_model
 from backend.retrieval.chunker import chunk_items
@@ -49,11 +49,21 @@ def process_sync(
     )
 
     deleted = 0
+    failed = 0
 
-    # 全量替换 → 先清空 collection
+    # 原子化全量替换：先写入新数据，全部成功后再删除旧数据
+    # 避免写入中途失败导致知识库进入空状态
+    old_ids_to_delete: set[str] = set()
     if full_replace:
-        clear_collection(tenant_id, kb_type)
-        logger.info(f"同步清空 collection: tenant={tenant_id}, kb_type={kb_type}")
+        try:
+            collection = get_collection(tenant_id, kb_type)
+            existing = collection.get()
+            if existing and existing.get("ids"):
+                old_ids_to_delete = set(existing["ids"])
+        except Exception as e:
+            logger.warning(f"获取已有文档ID失败，降级为先清空再写入: {e}")
+            clear_collection(tenant_id, kb_type)
+            logger.info(f"同步清空 collection（降级）: tenant={tenant_id}, kb_type={kb_type}")
 
     if not items:
         return {"processed_count": 0, "deleted_count": deleted}
@@ -104,23 +114,49 @@ def process_sync(
             )
         except Exception as e:
             logger.error(f"同步处理单条失败: id={item_id}, error={e}")
+            failed += 1
+
+    # 同步状态：全部成功为 success，部分失败为 partial
+    sync_status = "success" if failed == 0 else "partial"
+
+    # 原子化全量替换：写入完成后，删除不在新数据集中的旧文档
+    if full_replace and old_ids_to_delete:
+        new_ids = {item.get("id", "") for item in items}
+        ids_to_remove = old_ids_to_delete - new_ids
+        if ids_to_remove:
+            try:
+                delete_from_collection(tenant_id, kb_type, list(ids_to_remove), async_write=False)
+                deleted = len(ids_to_remove)
+                logger.info(f"原子替换删除旧文档: tenant={tenant_id}, kb_type={kb_type}, deleted={deleted}")
+            except Exception as e:
+                logger.error(f"删除旧文档失败（新数据已写入，旧数据残留）: {e}")
 
     logger.info(
         f"同步处理完成: tenant={tenant_id}, kb_type={kb_type}, "
-        f"processed={processed}, deleted={deleted}"
+        f"processed={processed}, deleted={deleted}, failed={failed}, status={sync_status}"
     )
 
-    # 记录同步日志
-    from backend.knowledge.sync_log import record_sync_log
-    record_sync_log(
-        tenant_id=tenant_id,
-        kb_type=kb_type,
-        sync_type=sync_type,
-        item_count=total,
-        processed_count=processed,
-        deleted_count=deleted,
-        status="success",
-    )
+    # 记录同步日志（含快照，用于回滚）
+    # 回滚操作本身不记录 sync_log，避免污染回滚源
+    # （否则下次 get_last_sync_snapshot 会取到回滚自身的快照，而非原始同步）
+    if sync_type != "rollback":
+        from backend.knowledge.sync_log import record_sync_log
+        if len(items) > 1000:
+            logger.warning(f"快照截断: items={len(items)}, 仅保留前 1000 条，回滚可能不完整")
+        snapshot = [_build_snapshot_item(item) for item in items[:1000]]
+        record_sync_log(
+            tenant_id=tenant_id,
+            kb_type=kb_type,
+            sync_type=sync_type,
+            item_count=total,
+            processed_count=processed,
+            deleted_count=deleted,
+            status=sync_status,
+            snapshot=snapshot,
+        )
+
+    # 同步写入关系型 FAQ/Document 表（便于管理后台查询）
+    _persist_relational_records(tenant_id, kb_type, items, full_replace)
 
     return {"processed_count": processed, "deleted_count": deleted}
 
@@ -197,8 +233,9 @@ def process_batch(
         f"processed={processed}, deleted={deleted}"
     )
 
-    # 记录同步日志
+    # 记录同步日志（含快照，用于回滚）
     from backend.knowledge.sync_log import record_sync_log
+    snapshot = [_build_snapshot_item(item) for item in items[:1000]]
     record_sync_log(
         tenant_id=tenant_id,
         kb_type=kb_type,
@@ -207,6 +244,150 @@ def process_batch(
         processed_count=processed,
         deleted_count=deleted,
         status="success",
+        snapshot=snapshot,
     )
 
+    # 同步写入关系型 FAQ/Document 表（增量模式）
+    _persist_relational_records(tenant_id, kb_type, items, full_replace=False)
+
     return {"processed_count": processed, "deleted_count": deleted}
+
+
+# ============================================================
+# 辅助函数
+# ============================================================
+
+def _build_snapshot_item(item: dict) -> dict:
+    """
+    构建同步快照条目（精简字段，用于回滚）
+
+    :param item: 原始知识条目
+    :return: {id, content, metadata}
+    """
+    meta = item.get("metadata")
+    return {
+        "id": item.get("id", ""),
+        "content": item.get("content", ""),
+        "metadata": meta if isinstance(meta, dict) else {},
+    }
+
+
+def _safe_int(value, default: int) -> int:
+    """
+    安全转 int，防御 None / 非数字字符串
+
+    :param value: 原始值
+    :param default: 转换失败时的默认值
+    :return: int 值
+    """
+    try:
+        return int(value) if value is not None else default
+    except (TypeError, ValueError):
+        logger.warning(f"int 转换失败: value={value!r}, 使用默认值={default}")
+        return default
+
+
+def _persist_relational_records(
+    tenant_id: str,
+    kb_type: str,
+    items: list[dict],
+    full_replace: bool,
+) -> None:
+    """
+    将知识条目同步写入关系型 FAQ/Document 表
+
+    仅对 faq / document 类型生效，其他类型跳过。
+    写入失败不影响主流程，仅记录警告。
+
+    :param tenant_id: 租户ID
+    :param kb_type: 知识库类型
+    :param items: 知识条目列表
+    :param full_replace: 是否全量替换（先删除旧记录）
+    """
+    if kb_type not in ("faq", "document"):
+        return
+
+    try:
+        from backend.database import SessionLocal
+        from backend.models.knowledge import FAQ, Document
+
+        db = SessionLocal()
+        try:
+            # DELETE 与 INSERT 在同一事务内，避免中途失败导致数据丢失
+            if full_replace:
+                if kb_type == "faq":
+                    db.query(FAQ).filter(FAQ.tenant_id == tenant_id).delete()
+                else:
+                    db.query(Document).filter(Document.tenant_id == tenant_id).delete()
+                # 不在此处 commit，与后续 INSERT 共享同一事务
+
+            for item in items:
+                item_id = item.get("id", "")
+                content = item.get("content", "")
+                meta = item.get("metadata")
+                if not isinstance(meta, dict):
+                    meta = {}
+
+                if kb_type == "faq":
+                    # FAQ: content 格式约定为 "Q: 问题\nA: 答案" 或纯问题
+                    question, answer = _parse_faq_content(content, meta)
+                    record = FAQ(
+                        tenant_id=tenant_id,
+                        question=question,
+                        answer=answer,
+                        category=meta.get("category", "通用"),
+                        tags=meta.get("tags", ""),
+                        is_enabled=True,
+                        chroma_ids=item_id,
+                    )
+                    db.add(record)
+                else:
+                    # Document
+                    record = Document(
+                        tenant_id=tenant_id,
+                        filename=meta.get("filename", item_id),
+                        file_type=meta.get("file_type", "txt"),
+                        file_size=_safe_int(meta.get("file_size"), len(content)),
+                        chunk_count=_safe_int(meta.get("chunk_count"), 1),
+                        is_enabled=True,
+                        chroma_ids=item_id,
+                    )
+                    db.add(record)
+
+            db.commit()
+            logger.info(
+                f"关系表写入完成: tenant={tenant_id}, kb_type={kb_type}, "
+                f"count={len(items)}, full_replace={full_replace}"
+            )
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"关系表写入失败（不影响向量库）: tenant={tenant_id}, kb_type={kb_type}, error={e}")
+
+
+def _parse_faq_content(content: str, meta: dict) -> tuple[str, str]:
+    """
+    解析 FAQ 内容为 (question, answer)
+
+    支持格式：
+    - "Q: 问题\nA: 答案"
+    - "问题\n答案"
+    - metadata 中直接提供 question/answer
+
+    :param content: 原始内容
+    :param meta: 元数据
+    :return: (question, answer)
+    """
+    if meta.get("question") and meta.get("answer"):
+        return str(meta["question"]), str(meta["answer"])
+
+    if "Q:" in content and "A:" in content:
+        parts = content.split("A:", 1)
+        question = parts[0].replace("Q:", "").strip()
+        answer = parts[1].strip() if len(parts) > 1 else ""
+        return question, answer
+
+    lines = content.split("\n", 1)
+    question = lines[0].strip()
+    answer = lines[1].strip() if len(lines) > 1 else ""
+    return question, answer

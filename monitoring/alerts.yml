@@ -1,8 +1,6 @@
-"""
-Prometheus 告警规则
-
-触发条件 → 告警通知
-"""
+# Prometheus 告警规则
+#
+# 触发条件 → 告警通知
 groups:
   - name: kefu-agent-alerts
     rules:
@@ -78,7 +76,7 @@ groups:
       # 转人工率过高
       - alert: HighHandoffRate
         expr: |
-          sum(rate(kefu_requests_total{path~".*handoff.*"}[10m]))
+          sum(rate(kefu_requests_total{path=~".*handoff.*"}[10m]))
           /
           sum(rate(kefu_chat_messages_total[10m]))
           > 0.3

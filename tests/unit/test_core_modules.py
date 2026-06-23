@@ -94,37 +94,6 @@ class TestEstimateTokens:
         assert 3 <= tokens <= 10
 
 
-class TestTokenBudget:
-    """TokenBudget 预算管理器测试"""
-
-    def test_allocate(self):
-        from backend.utils.token_budget import TokenBudget
-        budget = TokenBudget(total_budget=6000)
-        budget.allocate("system", 1500)
-        budget.allocate("history", 3000)
-
-        assert budget.budget_for("system") == 1500
-        assert budget.budget_for("history") == 3000
-        assert budget.budget_for("unknown") == 0
-
-    def test_remaining_no_usage(self):
-        from backend.utils.token_budget import TokenBudget
-        budget = TokenBudget(total_budget=8000, reserved_response=2000)
-        assert budget.remaining() == 6000  # 8000 - 2000
-
-    def test_remaining_with_usage(self):
-        from backend.utils.token_budget import TokenBudget
-        budget = TokenBudget(total_budget=8000, reserved_response=2000)
-        used = {"system": 1000, "history": 2000}
-        assert budget.remaining(used) == 3000  # 8000 - 3000 - 2000
-
-    def test_remaining_negative_clamped(self):
-        from backend.utils.token_budget import TokenBudget
-        budget = TokenBudget(total_budget=1000, reserved_response=500)
-        used = {"system": 800}
-        assert budget.remaining(used) == 0  # 不会为负
-
-
 class TestTrimMessages:
     """消息裁剪测试"""
 

@@ -23,7 +23,6 @@ TEST_CASES = [
     ("这款商品有什么规格？", "product_query → product_query_node"),
     ("我有什么优惠券？", "coupon_query → coupon_query_node"),
     ("我的积分有多少？", "account_query → account_query_node"),
-    ("我要退款", "refund_operation → refund_operation_node"),
     ("谢谢你的帮助", "feedback → feedback_node"),
 ]
 
@@ -49,7 +48,11 @@ async def test_e2e_intent_routing(query, description):
         async with client.stream(
             'POST',
             'http://localhost:8080/api/v1/chat/demo_001/stream',
-            json={'message': query},
+            json={
+                'message': query,
+                'session_id': f'e2e_test_{abs(hash(query))}',
+                'user_id': 'e2e_test_user',
+            },
             headers={"X-Gateway-Verified": "true"}
         ) as resp:
             assert resp.status_code == 200, (

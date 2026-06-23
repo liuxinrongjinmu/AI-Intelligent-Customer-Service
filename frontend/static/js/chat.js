@@ -179,8 +179,8 @@
         let succeeded = false;
 
         try {
-            var abortController = new AbortController();
-            var timeoutId = setTimeout(function() { abortController.abort(); }, 120000);
+            let abortController = new AbortController();
+            let timeoutId = setTimeout(function() { abortController.abort(); }, 120000);
 
             const resp = await fetch(`/api/v1/chat/${TID}/stream`, {
                 method: 'POST',

@@ -12,6 +12,10 @@ import os
 import asyncio
 import uuid
 
+# Windows 终端默认 GBK 编码，遇到 emoji 会崩溃
+# 保持系统默认编码，仅对无法编码的字符做替换（如 emoji 显示为 ?）
+sys.stdout.reconfigure(errors='replace')
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from langchain_core.messages import HumanMessage

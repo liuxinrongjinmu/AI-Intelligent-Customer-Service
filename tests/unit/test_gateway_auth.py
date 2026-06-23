@@ -50,6 +50,7 @@ def _make_mock_request(
 def _reset_ip_whitelist_cache():
     """清空 _parsed_networks 缓存，使下次 _parse_ip_whitelist 重新从 config 读取"""
     gateway_auth._parsed_networks.clear()
+    gateway_auth._parsed = False
 
 
 # ---------------------------------------------------------------------------

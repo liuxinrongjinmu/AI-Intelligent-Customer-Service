@@ -1,6 +1,6 @@
-# 聚宝赞 AI 智能客服 Agent
+﻿# 聚宝赞 AI 智能客服 Agent
 
-> 基于大语言模型（DeepSeek）+ RAG 检索增强生成的多租户 AI 客服系统，支持意图识别、知识库问答、订单查询、物流追踪、售后处理、转人工等全链路客服场景。
+> 基于大语言模型（DeepSeek）+ RAG 检索增强生成的多租户 AI 客服系统，支持意图识别、知识库问答、订单查询、物流追踪、商品查询、转人工等全链路客服场景。
 
 ---
 
@@ -68,14 +68,14 @@
 │  │ (含指代消解)  │                                  │
 │  └──────┬───────┘                                  │
 │         │                                          │
-│    路由分发（12种意图）                              │
+│    路由分发（10种意图）                              │
 │         │                                          │
 │  ┌──────┴──────┬──────────┬──────────┐            │
 │  ▼             ▼          ▼          ▼            │
-│ 知识检索    订单查询    售后操作   转人工 ...       │
+│ 知识检索    订单查询    商品查询   转人工 ...       │
 │  │             │          │          │             │
 │  ▼             ▼          ▼          ▼             │
-│ 生成回答    格式化结果   处理退款  创建工单         │
+│ 生成回答    格式化结果   查询结果  创建工单         │
 │  │             │          │          │             │
 │  └─────────────┴──────────┴──────────┘             │
 │                    │                                │
@@ -96,19 +96,17 @@
 
 ### 意图识别与路由
 
-系统支持 12 种意图大类，按优先级从高到低路由：
+系统支持 10 种意图大类，按优先级从高到低路由：
 
 | 优先级 | 意图 | 说明 | 路由目标 |
 |--------|------|------|----------|
 | 1 | `human_service` | 转人工服务 | 创建工单 + 转人工 |
-| 2 | `refund_operation` | 售后操作（退款/退货/换货/维修） | 查询订单 + 处理退款 |
 | 3 | `order_query` | 订单查询 | 调用订单 API |
 | 3 | `logistics_query` | 物流查询 | 查订单 + 查物流 |
 | 3 | `product_query` | 商品咨询 | 调用商品 API |
 | 3 | `coupon_query` | 优惠券咨询 | 调用优惠券 API |
 | 3 | `account_query` | 账户查询 | 调用用户画像 API |
 | 4 | `knowledge_query` | 通用知识查询 | 知识库检索 + LLM 生成 |
-| 5 | `complaint` | 投诉处理 | 表达歉意 + 转人工 |
 | 5 | `greeting` | 问候/闲聊 | LLM 生成 |
 | 5 | `feedback` | 反馈/确认 | 固定话术 |
 | 5 | `other` | 其他 | 兜底话术 |
@@ -293,13 +291,11 @@ python chat.py
 | `ORDER_SERVICE_NAME` | 订单服务在 Nacos 中的注册名 |
 | `PRODUCT_SERVICE_NAME` | 商品服务在 Nacos 中的注册名 |
 | `LOGISTICS_SERVICE_NAME` | 物流服务在 Nacos 中的注册名 |
-| `REFUND_SERVICE_NAME` | 售后服务在 Nacos 中的注册名 |
 | `COUPON_SERVICE_NAME` | 优惠券服务在 Nacos 中的注册名 |
 | `USER_PROFILE_SERVICE_NAME` | 用户画像服务在 Nacos 中的注册名 |
 | `ORDER_API_TIMEOUT` | 订单 API 超时（秒） |
 | `PRODUCT_API_TIMEOUT` | 商品 API 超时（秒） |
 | `LOGISTICS_API_TIMEOUT` | 物流 API 超时（秒） |
-| `REFUND_API_TIMEOUT` | 售后 API 超时（秒） |
 | `COUPON_API_TIMEOUT` | 优惠券 API 超时（秒） |
 | `USER_PROFILE_API_TIMEOUT` | 用户画像 API 超时（秒） |
 
@@ -404,7 +400,6 @@ kefu_agent/
 │   │   ├── logistics_service.py# 物流查询
 │   │   ├── order_service.py    # 订单查询
 │   │   ├── product_service.py  # 商品查询
-│   │   ├── refund_service.py   # 售后处理
 │   │   ├── sync_service.py     # 知识库异步同步
 │   │   └── user_profile_service.py # 用户画像
 │   ├── utils/                  # 工具模块

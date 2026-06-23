@@ -1,13 +1,18 @@
 """
 多租户中间件：识别和鉴权（含 LRU 缓存，避免每次请求查库）
+
+支持复用请求级 DB 会话：当作为 FastAPI 依赖注入时，
+通过 Depends(get_db) 复用同一会话，避免创建额外连接。
 """
 import time
 import logging
 import threading
 from collections import OrderedDict
-from fastapi import Request, HTTPException
+from typing import Optional
+from fastapi import Request, HTTPException, Depends
 from sqlalchemy.exc import SQLAlchemyError
-from backend.database import SessionLocal
+from sqlalchemy.orm import Session
+from backend.database import SessionLocal, get_db
 from backend.models.tenant import Tenant, hash_api_key
 
 logger = logging.getLogger(__name__)
@@ -75,10 +80,16 @@ def invalidate_tenant_cache(tenant_id: str):
         _tenant_cache.pop(tenant_id, None)
 
 
-async def verify_tenant_api_key(request: Request):
+async def verify_tenant_api_key(
+    request: Request,
+    db: Optional[Session] = Depends(get_db),
+):
     """
     校验管理端 API Key（含缓存）
     从 X-API-Key Header 获取并验证（仅管理端使用，服务间接口走 Gateway 认证）
+
+    :param request: FastAPI 请求对象
+    :param db: 请求级 DB 会话（FastAPI 注入，复用避免额外连接）
     """
     api_key = request.headers.get("X-API-Key") or request.headers.get("x-api-key")
     if not api_key:
@@ -94,10 +105,12 @@ async def verify_tenant_api_key(request: Request):
             request.state.tenant = tenant
             return tenant
 
-    # 缓存未命中，查数据库
-    db = None
-    try:
+    # 缓存未命中，查数据库（优先复用请求级会话）
+    own_session = False
+    if db is None:
         db = SessionLocal()
+        own_session = True
+    try:
         tenant = db.query(Tenant).filter_by(api_key_hash=hashed, is_active=True).first()
         if not tenant:
             raise HTTPException(status_code=403, detail="无效的 API Key")
@@ -115,13 +128,21 @@ async def verify_tenant_api_key(request: Request):
         logger.error(f"租户鉴权数据库异常: {e}")
         raise HTTPException(status_code=500, detail="服务暂时不可用，请稍后重试")
     finally:
-        if db:
+        if own_session and db:
             db.close()
 
 
-def get_tenant_from_path(request: Request, tenant_id: str):
+def get_tenant_from_path(
+    request: Request,
+    tenant_id: str,
+    db: Optional[Session] = Depends(get_db),
+):
     """
     从 URL 路径提取 tenant_id 并验证（含缓存）
+
+    :param request: FastAPI 请求对象
+    :param tenant_id: 租户ID
+    :param db: 请求级 DB 会话（FastAPI 注入，复用避免额外连接）
     """
     # 先查缓存
     tenant = _get_cached_tenant(tenant_id)
@@ -129,10 +150,12 @@ def get_tenant_from_path(request: Request, tenant_id: str):
         request.state.tenant = tenant
         return tenant
 
-    # 缓存未命中，查数据库
-    db = None
-    try:
+    # 缓存未命中，查数据库（优先复用请求级会话）
+    own_session = False
+    if db is None:
         db = SessionLocal()
+        own_session = True
+    try:
         tenant = db.query(Tenant).filter_by(tenant_id=tenant_id, is_active=True).first()
         if not tenant:
             raise HTTPException(status_code=404, detail=f"租户 {tenant_id} 不存在")
@@ -149,5 +172,5 @@ def get_tenant_from_path(request: Request, tenant_id: str):
         logger.error(f"租户查询数据库异常: {e}")
         raise HTTPException(status_code=500, detail="服务暂时不可用，请稍后重试")
     finally:
-        if db:
+        if own_session and db:
             db.close()

@@ -67,6 +67,14 @@ def create_faq(db: Session, tenant_id: str, question: str, answer: str,
                category: str = "通用", tags: str = "") -> FAQ:
     """
     创建FAQ并同步向量化
+
+    :param db: 数据库会话
+    :param tenant_id: 租户 ID
+    :param question: 问题
+    :param answer: 答案
+    :param category: 分类
+    :param tags: 标签
+    :return: FAQ 对象
     """
     faq = FAQ(
         tenant_id=tenant_id,
@@ -82,7 +90,11 @@ def create_faq(db: Session, tenant_id: str, question: str, answer: str,
     try:
         sync_faq_to_chromadb(db, faq)
     except Exception as e:
-        logger.error(f"FAQ #{faq.id} ChromaDB同步失败: {e}")
+        # 向量库同步失败，回滚 DB 以保持数据一致性
+        logger.error(f"FAQ #{faq.id} ChromaDB同步失败，回滚DB: {e}")
+        db.delete(faq)
+        db.commit()
+        raise RuntimeError(f"FAQ创建失败：向量库同步异常 - {e}")
 
     return faq
 

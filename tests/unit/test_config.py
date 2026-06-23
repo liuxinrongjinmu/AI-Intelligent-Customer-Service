@@ -22,16 +22,16 @@ class TestConfigValidation:
         warnings, errors = config_module.validate_config()
         assert any("DEEPSEEK_API_KEY 未配置" in e for e in errors)
 
-    def test_admin_api_key_missing_returns_warnings(self, monkeypatch):
+    def test_admin_api_key_default_returns_warnings(self, monkeypatch):
         """
-        ADMIN_API_KEY 未配置时返回 warnings
+        ADMIN_API_KEY 使用默认弱密钥时返回 warnings
         """
         monkeypatch.setattr(config_module, "DEEPSEEK_API_KEY", "sk-valid-key")
-        monkeypatch.setattr(config_module, "ADMIN_API_KEY", "")
+        monkeypatch.setattr(config_module, "ADMIN_API_KEY", "change-me-admin-key")
         monkeypatch.setattr(config_module, "GATEWAY_IP_WHITELIST", "10.0.0.0/8")
 
         warnings, errors = config_module.validate_config()
-        assert any("ADMIN_API_KEY 未配置" in w for w in warnings)
+        assert any("ADMIN_API_KEY 使用默认弱密钥" in w for w in warnings)
 
     def test_gateway_ip_whitelist_missing_returns_warnings(self, monkeypatch):
         """

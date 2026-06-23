@@ -62,14 +62,28 @@ intent_cache = _LRUCache(max_size=INTENT_CACHE_MAX_SIZE, ttl=INTENT_CACHE_TTL)
 answer_cache = _LRUCache(max_size=ANSWER_CACHE_MAX_SIZE, ttl=ANSWER_CACHE_TTL)
 
 
-def get_cached_intent(message: str) -> dict | None:
-    """获取缓存的意图分类结果"""
-    return intent_cache.get(message)
+def get_cached_intent(message: str, tenant_id: str = "") -> dict | None:
+    """
+    获取缓存的意图分类结果
+
+    :param message: 用户消息文本
+    :param tenant_id: 租户 ID（参与缓存 key，避免跨租户污染）
+    :return: 缓存的意图结果，无则返回 None
+    """
+    key = f"{tenant_id}:{message}"
+    return intent_cache.get(key)
 
 
-def set_cached_intent(message: str, result: dict):
-    """缓存意图分类结果"""
-    intent_cache.set(message, result)
+def set_cached_intent(message: str, result: dict, tenant_id: str = ""):
+    """
+    缓存意图分类结果
+
+    :param message: 用户消息文本
+    :param result: 意图分类结果
+    :param tenant_id: 租户 ID（参与缓存 key，避免跨租户污染）
+    """
+    key = f"{tenant_id}:{message}"
+    intent_cache.set(key, result)
 
 
 def get_cached_answer(message: str, tenant_id: str) -> str | None:

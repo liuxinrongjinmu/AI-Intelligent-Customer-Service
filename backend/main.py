@@ -93,7 +93,7 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
             content_length = request.headers.get("content-length", "")
             if content_length and int(content_length) > self._max_size:
                 return Response(
-                    content='{"detail":"请求体过大，请减少数据量后重试"}',
+                    content='{"code":"REQUEST_TOO_LARGE","message":"请求体过大，请减少数据量后重试"}',
                     status_code=413,
                     media_type="application/json",
                 )
@@ -119,7 +119,8 @@ async def lifespan(app: FastAPI):
     from backend.nacos.registry import register_service, heartbeat_loop
     registered = await register_service()
     if registered:
-        asyncio.create_task(heartbeat_loop())
+        # 保留任务引用，防止被 GC 回收
+        _heartbeat_task = asyncio.create_task(heartbeat_loop())
     logger.info("应用启动完成")
     yield
     # 关闭时清理
@@ -129,6 +130,9 @@ async def lifespan(app: FastAPI):
     await deregister_service()
     await close_agent()
     await close_shared_client()
+    # 关闭 Redis 连接
+    from backend.utils.redis_client import close_redis
+    await close_redis()
     # 关闭 ChromaDB 写入线程
     from backend.retrieval.vector_store import shutdown_write_thread
     shutdown_write_thread()
@@ -159,12 +163,16 @@ app = FastAPI(
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",")
 # 过滤空字符串
 ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS if o.strip()] or ["*"]
+# CORS 安全：当 origins=["*"] 时，浏览器规范禁止 allow_credentials=True
 if ALLOWED_ORIGINS == ["*"]:
     logger.warning("CORS 允许所有来源（*），生产环境请配置 ALLOWED_ORIGINS 为具体域名")
+    _cors_allow_credentials = False
+else:
+    _cors_allow_credentials = True
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=_cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

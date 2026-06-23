@@ -36,12 +36,6 @@ EVAL_DATASET = [
     {"message": "密码忘了怎么找回来？", "expected_intent": "knowledge_query", "sub_type": "general_help", "desc": "找回密码"},
     {"message": "怎么修改收货地址？", "expected_intent": "account_query", "sub_type": "address_manage", "desc": "修改地址"},
 
-    # ========== 退款申请 ==========
-    {"message": "不想要了，还没发货，帮我退款。", "expected_intent": "refund_operation", "sub_type": "refund_only", "desc": "仅退款"},
-    {"message": "收到的东西坏了，我要退货。", "expected_intent": "refund_operation", "sub_type": "return_refund", "desc": "退货退款"},
-    {"message": "尺码不合适，能换一个吗？", "expected_intent": "refund_operation", "sub_type": "exchange", "desc": "换货"},
-    {"message": "退款怎么还没到账？", "expected_intent": "refund_operation", "sub_type": "refund_progress", "desc": "退款进度"},
-
     # ========== 订单查询 ==========
     {"message": "帮我查一下订单状态。", "expected_intent": "order_query", "sub_type": "order_status", "desc": "订单状态"},
     {"message": "前两天买的东西到哪了？", "expected_intent": "logistics_query", "sub_type": "logistics_progress", "desc": "物流进度"},
@@ -84,10 +78,6 @@ EVAL_DATASET = [
 
     # ========== 安全 ==========
     {"message": "我的账号被盗了怎么办？", "expected_intent": "account_query", "sub_type": "account_security", "desc": "账号安全"},
-
-    # ========== 老人/特殊场景 ==========
-    {"message": "我不会操作退款，能不能帮我弄", "expected_intent": "refund_operation", "sub_type": "refund_only", "desc": "老人操作退款"},
-    {"message": "字太小看不清，能不能告诉我怎么退货", "expected_intent": "refund_operation", "sub_type": "return_refund", "desc": "视力不好问退货"},
 
     # ========== 极限压力 ==========
     {"message": "订单号忘记了我给你手机号13812345678能不能帮我查一下物流到哪了", "expected_intent": "logistics_query", "sub_type": "logistics_progress", "desc": "手机号查物流"},

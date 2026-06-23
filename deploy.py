@@ -23,12 +23,12 @@
 """
 import os
 import sys
-import io
 import time
 
 import paramiko
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+# Windows 终端编码处理：保持系统默认编码，替换无法编码的字符
+sys.stdout.reconfigure(errors='replace')
 
 
 def run_cmd(ssh, cmd, timeout=600):

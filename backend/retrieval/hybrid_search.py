@@ -37,7 +37,8 @@ _query_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="retrieva
 
 def shutdown_retrieval_executor():
     """优雅关闭检索线程池"""
-    _query_executor.shutdown(wait=True, timeout=10)
+    # Python 3.9+ 的 ThreadPoolExecutor.shutdown 不再支持 timeout 参数
+    _query_executor.shutdown(wait=True)
 
 
 def _parse_chromadb_result(raw: dict) -> list[dict]:

@@ -1,14 +1,23 @@
 """
 全局 HTTP 客户端连接池 + 限流中间件
+
+限流策略：
+- 优先使用 Redis 滑动窗口（多 Worker 共享，服务重启后仍生效）
+- Redis 不可用时降级为内存模式（单进程内有效）
+- 默认每 IP 每分钟 120 次请求，chat/sync 端点 60 次
 """
 import time
 import logging
 import threading
+import uuid
 from collections import defaultdict
 from threading import Lock
 import httpx
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
+
+from backend.config import RATE_LIMIT_WINDOW
+from backend.utils.redis_client import get_redis
 
 logger = logging.getLogger(__name__)
 
@@ -39,30 +48,27 @@ async def close_shared_client():
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
-    简易全局限流中间件（内存存储）
+    限流中间件（Redis 优先 + 内存降级）
 
-    当前实现使用内存 dict 存储计数，服务重启后计数归零。
-    生产环境建议升级为 Redis 持久化方案，避免服务重启后限流窗口被绕过。
+    Redis 模式：
+    - 使用 Sorted Set 实现滑动窗口
+    - 多 Worker 共享计数，服务重启后窗口仍有效
+    - 原子性由 Redis 单线程保证
 
-    限流策略：
-    - 默认每 IP 每分钟 120 次请求
-    - chat 和 sync 端点限制更严格：每 IP 每分钟 60 次
-    - 含全局过期 key 定期清理，防止内存泄漏
-
-    升级路径（Redis）：
-    1. 使用 redis-py 的 Sorted Set 实现滑动窗口
-    2. 使用 Redis + Lua 脚本保证原子性
-    3. 多 Worker 共享同一个 Redis 限流计数器
+    内存降级模式：
+    - Redis 不可用时自动降级
+    - 单进程内有效，服务重启后计数归零
     """
 
     def __init__(self, app, default_limit: int = 120, chat_limit: int = 60):
         super().__init__(app)
         self._default_limit = default_limit
         self._chat_limit = chat_limit
+        # 内存降级模式的数据结构
         self._counts: dict[str, list[float]] = defaultdict(list)
         self._lock = Lock()
         self._last_cleanup = time.time()
-        self._cleanup_interval = 60  # 每 60 秒清理一次过期 key
+        self._cleanup_interval = 60
 
     def _get_client_ip(self, request: Request) -> str:
         forwarded = request.headers.get("X-Forwarded-For", "")
@@ -70,26 +76,49 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return forwarded.split(",")[0].strip()
         return request.client.host if request.client else "unknown"
 
-    def _check_limit(self, key: str, limit: int) -> bool:
-        """检查是否超过限流阈值，未超过则记录并返回 True"""
+    def _check_limit_memory(self, key: str, limit: int) -> bool:
+        """内存模式：检查是否超过限流阈值"""
         now = time.time()
         with self._lock:
-            # 清理当前 key 的过期记录
-            self._counts[key] = [t for t in self._counts[key] if now - t < 60]
-
-            # 定期全局清理：删除所有已无记录的 key，防止内存泄漏
+            self._counts[key] = [t for t in self._counts[key] if now - t < RATE_LIMIT_WINDOW]
             if now - self._last_cleanup > self._cleanup_interval:
                 expired_keys = [k for k, v in self._counts.items() if not v]
                 for k in expired_keys:
                     del self._counts[k]
                 self._last_cleanup = now
-
-            # 超过阈值则拒绝
             if len(self._counts[key]) >= limit:
                 return False
-            # 未超过阈值，记录本次请求时间戳并放行
             self._counts[key].append(now)
             return True
+
+    async def _check_limit_redis(self, redis_client, key: str, limit: int) -> bool:
+        """
+        Redis 模式：滑动窗口限流
+
+        使用 Sorted Set：
+        - member = 唯一 ID（避免同毫秒请求被去重）
+        - score = 时间戳
+        - 先清理过期成员，再判断当前窗口内数量
+        """
+        now = time.time()
+        window_start = now - RATE_LIMIT_WINDOW
+        member = f"{now}:{uuid.uuid4().hex}"
+        pipe = redis_client.pipeline()
+        # 1. 移除窗口外的过期记录
+        pipe.zremrangebyscore(key, 0, window_start)
+        # 2. 先统计当前窗口内数量（添加前检查）
+        pipe.zcard(key)
+        # 3. 添加当前请求（使用 uuid4 保证 member 唯一）
+        pipe.zadd(key, {member: now})
+        # 4. 设置 key 过期时间（避免冷 key 永久占用内存）
+        pipe.expire(key, RATE_LIMIT_WINDOW + 10)
+        results = await pipe.execute()
+        current_count = results[1]
+        # 若超限，移除刚添加的 member，避免被拒请求占用 slot
+        if current_count >= limit:
+            await redis_client.zrem(key, member)
+            return False
+        return True
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
@@ -106,15 +135,27 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # 区分聊天/同步接口和其他接口的限流
         if "/chat/" in path or "/knowledge/sync" in path:
             limit = self._chat_limit
-            rate_key = f"{ip}:chat"
+            rate_key = f"ratelimit:{ip}:chat"
         else:
             limit = self._default_limit
-            rate_key = f"{ip}:api"
+            rate_key = f"ratelimit:{ip}:api"
 
-        if not self._check_limit(rate_key, limit):
+        # 优先 Redis，降级内存
+        allowed = False
+        redis_client = await get_redis()
+        if redis_client is not None:
+            try:
+                allowed = await self._check_limit_redis(redis_client, rate_key, limit)
+            except Exception as e:
+                logger.warning(f"Redis 限流异常，降级内存模式: {e}")
+                allowed = self._check_limit_memory(rate_key, limit)
+        else:
+            allowed = self._check_limit_memory(rate_key, limit)
+
+        if not allowed:
             logger.warning(f"限流触发: ip={ip}, path={path}")
             return Response(
-                content='{"detail":"请求过于频繁，请稍后再试"}',
+                content='{"code":"RATE_LIMITED","message":"请求过于频繁，请稍后再试"}',
                 status_code=429,
                 media_type="application/json",
             )

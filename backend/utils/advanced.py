@@ -19,7 +19,6 @@ FALLBACK_RESPONSES = {
     "logistics_no_update": "物流信息暂未更新，可能是快递公司数据同步延迟或包裹尚在途中。建议过几小时刷新查看。",
     "product_not_found": "未找到相关商品。您可以提供更具体的商品名称，或说\u201c转人工\u201d联系客服协助查找。",
     "coupon_query_failed": "暂时无法查询优惠券信息，建议您在APP\u201c我的-优惠券\u201d中查看，或稍后再试。",
-    "refund_failed": "退款操作遇到问题，建议稍后再试。如需处理售后，可说\u201c转人工\u201d联系客服。",
     "general_error": "抱歉，系统处理您的请求时出现了问题。请稍后再试，或说\u201c转人工\u201d联系客服。",
 
     # ==================== AI 无法理解 ====================
@@ -107,16 +106,23 @@ def get_ab_config() -> dict[str, Any]:
 
     通过 weight 控制流量分配，例如 v1:70%, v2:20%, v3:10%
     设置环境变量 AB_VARIANT 可强制指定版本（用于调试）
+
+    每次选择后记录埋点，用于流量分配效果分析。
+    强制模式下不记录埋点，避免调试流量污染 A/B 统计。
     """
     import os
+    from backend.utils.metrics import record_ab_variant
+
     forced = os.getenv("AB_VARIANT", "")
     if forced and forced in AB_TEST_VARIANTS:
+        # 强制模式不记录埋点，避免调试流量污染统计
         return AB_TEST_VARIANTS[forced]
 
     variants = list(AB_TEST_VARIANTS.items())
     weights = [v[1]["weight"] for v in variants]
     total_weight = sum(weights)
     if total_weight == 0:
+        _safe_record_ab("v1")
         return AB_TEST_VARIANTS["v1"]
 
     r = random.uniform(0, total_weight)
@@ -124,6 +130,21 @@ def get_ab_config() -> dict[str, Any]:
     for name, config in variants:
         cumulative += config["weight"]
         if r <= cumulative:
+            _safe_record_ab(name)
             return config
 
+    _safe_record_ab("v1")
     return AB_TEST_VARIANTS["v1"]
+
+
+def _safe_record_ab(variant: str):
+    """
+    安全记录 A/B 埋点（异常不影响主流程）
+
+    :param variant: 分桶名称
+    """
+    try:
+        from backend.utils.metrics import record_ab_variant
+        record_ab_variant(variant)
+    except Exception:
+        pass

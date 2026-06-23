@@ -90,7 +90,6 @@ class TestRouteByIntent:
 
     @pytest.mark.parametrize("intent,expected_node", [
         ("human_service", "human_service_node"),
-        ("refund_operation", "refund_operation_node"),
         ("order_query", "order_query_node"),
         ("logistics_query", "order_query_node"),  # 物流联动到订单
         ("product_query", "product_query_node"),
@@ -155,8 +154,8 @@ class TestIntentHierarchy:
             assert "tool_chain" in info, f"意图 {intent} 缺少 tool_chain"
 
     def test_intent_count(self):
-        """意图数量为 11（INTENT_HIERARCHY）"""
-        assert len(INTENT_HIERARCHY) == 11
+        """意图数量为 10（INTENT_HIERARCHY）"""
+        assert len(INTENT_HIERARCHY) == 10
 
     def test_no_duplicate_sub_types(self):
         """同一意图内子类型不重复"""
@@ -171,9 +170,9 @@ class TestIntentHierarchy:
         for intent, info in INTENT_HIERARCHY.items():
             if info["priority"] <= 3:
                 high_priority_intents.append(intent)
-        # 至少包含转人工和退款
+        # 至少包含转人工和订单查询
         assert "human_service" in high_priority_intents
-        assert "refund_operation" in high_priority_intents
+        assert "order_query" in high_priority_intents
 
 
 class TestNodesFallback:

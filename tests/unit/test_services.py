@@ -8,7 +8,6 @@ from unittest.mock import patch, AsyncMock, MagicMock
 import httpx
 
 from backend.services.order_service import format_order_result, _map_order_status
-from backend.services.refund_service import process_refund, query_refund_status, format_refund_result
 from backend.services.handoff_service import create_handoff_ticket, resolve_handoff_ticket
 
 
@@ -167,44 +166,6 @@ class TestOrderQuery:
         result = await query_order("tenant_001", "DD001")
         assert result["success"] is False
         assert "暂时不可用" in result["message"]
-
-
-class TestRefundService:
-    """退款服务（占位实现）"""
-
-    @pytest.mark.asyncio
-    async def test_process_refund_returns_unavailable(self):
-        """退款处理返回暂不可用"""
-        result = await process_refund("tenant_001", "DD001", "refund_only")
-        assert result["success"] is False
-        assert "暂未开放" in result["message"]
-        assert result["need_confirmation"] is False
-
-    @pytest.mark.asyncio
-    async def test_query_refund_status_returns_unavailable(self):
-        """退款查询返回暂不可用"""
-        result = await query_refund_status("tenant_001", "DD001")
-        assert result["success"] is False
-        assert "暂未开放" in result["message"]
-
-    def test_format_refund_result_failed(self):
-        """格式化失败的退款结果"""
-        result = {"success": False, "message": "退款查询失败"}
-        text = format_refund_result(result)
-        assert text == "退款查询失败"
-
-    def test_format_refund_result_success_placeholder(self):
-        """格式化成功的退款结果（占位）"""
-        result = {"success": True, "message": ""}
-        text = format_refund_result(result)
-        assert "暂未开放" in text
-
-    @pytest.mark.parametrize("action", ["refund_only", "return_refund", "exchange", "repair"])
-    @pytest.mark.asyncio
-    async def test_all_supported_actions(self, action):
-        """所有支持的售后操作类型"""
-        result = await process_refund("tenant_001", "DD001", action)
-        assert result["success"] is False  # 都是占位返回
 
 
 class TestHandoffService:

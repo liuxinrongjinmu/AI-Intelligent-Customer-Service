@@ -109,7 +109,7 @@ class TestChatStream:
         mock_agent = AsyncMock()
 
         async def mock_astream(*args, **kwargs):
-            yield {}
+            yield ("updates", {})
         mock_agent.astream = mock_astream
         mock_get_agent.return_value = mock_agent
 
@@ -131,7 +131,7 @@ class TestChatStream:
         mock_agent = AsyncMock()
 
         async def mock_astream(*args, **kwargs):
-            yield {}
+            yield ("updates", {})
         mock_agent.astream = mock_astream
         mock_get_agent.return_value = mock_agent
 
@@ -152,7 +152,7 @@ class TestChatStream:
         mock_agent = AsyncMock()
 
         async def mock_astream(*args, **kwargs):
-            yield {}
+            yield ("updates", {})
         mock_agent.astream = mock_astream
         mock_get_agent.return_value = mock_agent
 
@@ -175,7 +175,7 @@ class TestChatStream:
         mock_agent = AsyncMock()
 
         async def mock_astream(*args, **kwargs):
-            yield {"generate_answer": {"final_answer": "您好，有什么可以帮您？", "intent": "greeting"}}
+            yield ("updates", {"generate_answer": {"final_answer": "您好，有什么可以帮您？", "intent": "greeting"}})
         mock_agent.astream = mock_astream
         mock_get_agent.return_value = mock_agent
 

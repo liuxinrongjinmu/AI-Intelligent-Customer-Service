@@ -106,7 +106,9 @@ def format_user_profile_result(result: dict[str, Any]) -> str:
 
     phone = data.get("phone", "")
     if phone:
-        parts.append(f"手机号：{phone}")
+        # 手机号脱敏，仅保留前3后4
+        masked_phone = phone[:3] + "****" + phone[-4:] if len(phone) >= 7 else "****"
+        parts.append(f"手机号：{masked_phone}")
 
     level_name = data.get("levelName", "")
     if level_name:

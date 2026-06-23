@@ -13,7 +13,7 @@
   DELETE /sync/{tenant_id}/{kb_type}          清空知识库（实时）
 """
 import logging
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.retrieval.vector_store import (
@@ -214,8 +214,9 @@ def clear_knowledge_base(
 def get_sync_history(
     tenant_id: str,
     kb_type: str = None,
-    limit: int = 20,
+    limit: int = Query(20, le=200),
     _api_key: str = Depends(verify_sync_api_key),
+    db: Session = Depends(get_db),
 ):
     """
     获取知识库同步历史记录
@@ -224,6 +225,63 @@ def get_sync_history(
     :param kb_type: 知识库类型（可选，为空返回所有类型）
     :param limit: 返回条数
     """
+    if kb_type != "public":
+        _validate_tenant(tenant_id, db)
     from backend.knowledge.sync_log import get_sync_history
     history = get_sync_history(tenant_id, kb_type, limit)
     return {"success": True, "tenant_id": tenant_id, "history": history}
+
+
+@router.post("/sync/{tenant_id}/{kb_type}/rollback")
+def rollback_knowledge(
+    tenant_id: str,
+    kb_type: str,
+    _api_key: str = Depends(verify_sync_api_key),
+    db: Session = Depends(get_db),
+):
+    """
+    回滚知识库到上一次成功同步的快照
+
+    从 sync_logs 中取出最近一次 status=success 且含 snapshot 的记录，
+    重新写入 ChromaDB（全量替换）。
+
+    :param tenant_id: 租户ID
+    :param kb_type: 知识库类型
+    """
+    if kb_type != "public":
+        _validate_tenant(tenant_id, db)
+    _validate_kb_type(kb_type)
+
+    from backend.knowledge.sync_log import get_last_sync_snapshot
+    snapshot = get_last_sync_snapshot(tenant_id, kb_type)
+    if not snapshot:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "NO_SNAPSHOT",
+                "message": f"未找到 {tenant_id}/{kb_type} 的历史快照，无法回滚",
+            },
+        )
+
+    # 使用快照数据重新全量同步
+    result = process_sync(
+        tenant_id=tenant_id,
+        kb_type=kb_type,
+        sync_type="rollback",
+        items=snapshot,
+        full_replace=True,
+    )
+
+    logger.info(
+        f"知识库回滚完成: tenant={tenant_id}, kb_type={kb_type}, "
+        f"restored={result['processed_count']}"
+    )
+
+    return KnowledgeSyncResponse(
+        success=True,
+        kb_type=kb_type,
+        tenant_id=tenant_id,
+        synced_count=result["processed_count"],
+        deleted_count=result["deleted_count"],
+        message=f"已回滚到上一次成功同步的快照，共恢复 {result['processed_count']} 条",
+    )

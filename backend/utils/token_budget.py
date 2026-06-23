@@ -5,12 +5,10 @@ Token 预算管理与上下文动态裁剪
 
 核心能力：
   - estimate_tokens: 预估文本 token 数量（适配 DeepSeek 系列模型）
-  - TokenBudget: Token 预算管理器，支持多分区预算分配和动态裁剪
   - trim_messages: 按 token 预算裁剪对话历史
   - trim_knowledge_context: 按 token 预算裁剪知识文档
 """
 import logging
-from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
@@ -33,57 +31,6 @@ def estimate_tokens(text: str) -> int:
     chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff' or '\u3000' <= c <= '\u303f')
     other_chars = len(text) - chinese_chars
     return int(chinese_chars * 1.8 + other_chars * 0.3)
-
-
-@dataclass
-class TokenBudget:
-    """
-    Token 预算管理器
-
-    将上下文窗口划分为多个预算分区，每个分区有独立的 token 上限。
-    超出预算时自动裁剪，优先保留最近的消息。
-
-    典型用法:
-        budget = TokenBudget(total_budget=6000)
-        budget.allocate("system_prompt", 1500)
-        budget.allocate("history", 3000)
-        budget.allocate("knowledge", 2500)
-
-        trimmed_history = budget.trim_messages(messages, "history")
-        trimmed_docs = budget.trim_knowledge(docs, "knowledge")
-    """
-    total_budget: int = 6000
-    allocations: dict[str, int] = field(default_factory=dict)
-    reserved_response: int = 1500
-
-    def allocate(self, name: str, max_tokens: int) -> None:
-        """
-        为一个预算分区分配 token 上限
-
-        :param name: 分区名称（如 system_prompt、history、knowledge）
-        :param max_tokens: 该分区的最大 token 数
-        """
-        self.allocations[name] = max_tokens
-
-    def remaining(self, used_by: dict[str, int] | None = None) -> int:
-        """
-        计算剩余可用 token 数
-
-        :param used_by: 各分区已使用的 token 数
-        :return: 剩余 token 数
-        """
-        total_used = sum(used_by.values()) if used_by else 0
-        remaining = self.total_budget - total_used - self.reserved_response
-        return max(0, remaining)
-
-    def budget_for(self, name: str) -> int:
-        """
-        获取指定分区的 token 预算
-
-        :param name: 分区名称
-        :return: token 上限
-        """
-        return self.allocations.get(name, 0)
 
 
 def trim_messages(

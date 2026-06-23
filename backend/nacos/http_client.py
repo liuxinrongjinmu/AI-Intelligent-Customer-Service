@@ -17,7 +17,10 @@ from backend.middleware.http_client import get_shared_client
 logger = logging.getLogger(__name__)
 
 # 最大重试次数（实例级）
-_MAX_RETRIES = 3
+# 注意：service 层已有 @retry_on_transient_error(max_retries=2) 装饰器，
+# 此处的重试用于尝试不同实例（服务发现），两者叠加后总请求上限 = (1+_MAX_RETRIES) × (1+service_retries)
+# 设为 1 以控制总延迟：最多尝试 2 个实例 × 3 次 service 重试 = 6 次，避免数十秒阻塞
+_MAX_RETRIES = 1
 
 # 断路器配置
 _CIRCUIT_FAILURE_THRESHOLD = 3   # 连续失败次数触发熔断

@@ -15,6 +15,7 @@ Gateway 认证中间件
 """
 import ipaddress
 import logging
+import threading
 from fastapi import Request, HTTPException
 
 from backend.config import (
@@ -23,35 +24,44 @@ from backend.config import (
 
 logger = logging.getLogger(__name__)
 
-# 解析 IP 白名单（启动时一次性解析）
+# 解析 IP 白名单（启动时一次性解析，线程安全懒加载）
 _parsed_networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+_parse_lock = threading.Lock()
+_parsed = False
 
 
 def _parse_ip_whitelist() -> list:
     """
-    解析 IP 白名单配置为网络对象列表
+    解析 IP 白名单配置为网络对象列表（线程安全懒加载）
 
     :return: IPv4Network / IPv6Network 列表
     """
-    if _parsed_networks:
+    global _parsed
+    if _parsed:
         return _parsed_networks
 
-    if not GATEWAY_IP_WHITELIST:
-        logger.warning("GATEWAY_IP_WHITELIST 未配置，Gateway 认证将接受所有来源 IP")
-        return []
+    with _parse_lock:
+        if _parsed:
+            return _parsed_networks
 
-    for cidr in GATEWAY_IP_WHITELIST.split(","):
-        cidr = cidr.strip()
-        if not cidr:
-            continue
-        try:
-            network = ipaddress.ip_network(cidr, strict=False)
-            _parsed_networks.append(network)
-        except ValueError as e:
-            logger.error(f"无效的 IP 网段配置: {cidr}, 错误: {e}")
+        if not GATEWAY_IP_WHITELIST:
+            logger.warning("GATEWAY_IP_WHITELIST 未配置，Gateway 认证将接受所有来源 IP")
+            _parsed = True
+            return _parsed_networks
 
-    logger.info(f"Gateway IP 白名单已加载: {[str(n) for n in _parsed_networks]}")
-    return _parsed_networks
+        for cidr in GATEWAY_IP_WHITELIST.split(","):
+            cidr = cidr.strip()
+            if not cidr:
+                continue
+            try:
+                network = ipaddress.ip_network(cidr, strict=False)
+                _parsed_networks.append(network)
+            except ValueError as e:
+                logger.error(f"无效的 IP 网段配置: {cidr}, 错误: {e}")
+
+        logger.info(f"Gateway IP 白名单已加载: {[str(n) for n in _parsed_networks]}")
+        _parsed = True
+        return _parsed_networks
 
 
 def _is_ip_in_whitelist(client_ip: str) -> bool:

@@ -5,6 +5,7 @@
 
 # 运行时数据
 data/
+.backup/
 *.db
 *.db-journal
 

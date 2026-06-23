@@ -123,7 +123,9 @@ def format_order_result(result: dict[str, Any]) -> str:
         if receiver_name:
             receiver_parts.append(receiver_name)
         if receiver_mobile:
-            receiver_parts.append(receiver_mobile)
+            # 手机号脱敏，仅保留前3后4
+            masked_mobile = receiver_mobile[:3] + "****" + receiver_mobile[-4:] if len(receiver_mobile) >= 7 else "****"
+            receiver_parts.append(masked_mobile)
         lines.append(f"收件人：{' '.join(receiver_parts)}")
         if receiver_address:
             lines.append(f"收件地址：{receiver_address}")

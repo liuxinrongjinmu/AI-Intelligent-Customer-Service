@@ -41,6 +41,9 @@ _llm_call_count: dict[str, int] = defaultdict(int)
 # 错误计数：{error_type -> count}
 _error_count: dict[str, int] = defaultdict(int)
 
+# A/B 测试分桶计数：{variant_name -> count}
+_ab_variant_count: dict[str, int] = defaultdict(int)
+
 # 启动时间
 _start_time = time.time()
 
@@ -137,6 +140,16 @@ def record_request_timing(elapsed: float, intent: str = ""):
         _request_count[key] = _request_count.get(key, 0) + 1
 
 
+def record_ab_variant(variant: str):
+    """
+    记录 A/B 测试分桶命中
+
+    :param variant: 分桶名称（如 v1/v2/v3）
+    """
+    with _lock:
+        _ab_variant_count[variant] += 1
+
+
 # ─── Prometheus 格式输出 ──────────────────────────────────────────────────
 
 
@@ -181,10 +194,33 @@ def get_metrics_text() -> str:
         ]
         for key, count in sorted(_request_count.items()):
             parts = key.split(":", 2)
+            # 仅处理 HTTP 请求键（method:path:status 三段式）
+            # 非 HTTP 键（cache:hit、retrieval:found、handoff:count、timing:total 等）跳过
+            if len(parts) < 3 or parts[0] in ("cache", "retrieval", "handoff", "timing"):
+                continue
             method, path, status = parts[0], parts[1], parts[2]
             lines.append(
                 f'kefu_requests_total{{method="{method}",path="{path}",status="{status}"}} {count}'
             )
+
+        # 输出非 HTTP 计数指标（缓存、检索、转人工、计时）
+        for metric_name, label_keys in [
+            ("kefu_cache_total", ["cache"]),
+            ("kefu_retrieval_total", ["retrieval"]),
+            ("kefu_handoff_total", ["handoff"]),
+            ("kefu_timing_total", ["timing"]),
+        ]:
+            related = {k: v for k, v in _request_count.items() if k.startswith(label_keys[0] + ":")}
+            if not related:
+                continue
+            lines.extend([
+                "",
+                f"# HELP {metric_name} {label_keys[0]} 计数",
+                f"# TYPE {metric_name} counter",
+            ])
+            for k, v in sorted(related.items()):
+                sub_key = k.split(":", 1)[1] if ":" in k else "total"
+                lines.append(f'{metric_name}{{type="{sub_key}"}} {v}')
 
         lines.extend([
             "",
@@ -221,6 +257,14 @@ def get_metrics_text() -> str:
         for error_type, count in sorted(_error_count.items()):
             lines.append(f'kefu_errors_total{{type="{error_type}"}} {count}')
 
+        lines.extend([
+            "",
+            "# HELP kefu_ab_test_total A/B 测试分桶命中次数",
+            "# TYPE kefu_ab_test_total counter",
+        ])
+        for variant, count in sorted(_ab_variant_count.items()):
+            lines.append(f'kefu_ab_test_total{{variant="{variant}"}} {count}')
+
         lines.append("")
         return "\n".join(lines)
 
@@ -244,4 +288,5 @@ def get_metrics_json() -> dict:
             "latency": latency_stats,
             "llm_calls": dict(_llm_call_count),
             "errors": dict(_error_count),
+            "ab_test": dict(_ab_variant_count),
         }

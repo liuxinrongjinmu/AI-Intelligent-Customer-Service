@@ -7,6 +7,8 @@ python-multipart>=0.0.18
 
 # 数据库
 sqlalchemy>=2.0.30
+# PostgreSQL 驱动（生产环境推荐，配置 DATABASE_URL 后启用）
+psycopg2-binary>=2.9.9
 
 # LangChain 生态
 langchain>=0.2.5
@@ -32,3 +34,9 @@ aiosqlite>=0.20.0
 
 # Nacos 服务注册与发现
 nacos-sdk-python>=2.0.0,<3.0.0
+
+# Redis 限流与缓存
+redis>=5.0.0
+
+# 监控
+prometheus-client>=0.20.0

@@ -50,11 +50,6 @@ class TestRouteByIntent:
         target = route_by_intent(state)
         assert target == "human_service_node"
 
-    def test_refund_operation_routes_to_refund_operation_node(self):
-        state = _make_state("refund_operation")
-        target = route_by_intent(state)
-        assert target == "refund_operation_node"
-
     def test_order_query_routes_to_order_query_node(self):
         state = _make_state("order_query")
         target = route_by_intent(state)
@@ -144,7 +139,6 @@ class TestIntentHierarchy:
     def test_route_map_covers_all_intents(self):
         route_map = {
             "human_service": "human_service_node",
-            "refund_operation": "refund_operation_node",
             "order_query": "order_query_node",
             "logistics_query": "order_query_node",
             "product_query": "product_query_node",

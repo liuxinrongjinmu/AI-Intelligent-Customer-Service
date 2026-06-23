@@ -22,7 +22,7 @@ def create_tenant(
     """
     existing = db.query(Tenant).filter_by(tenant_id=data.tenant_id).first()
     if existing:
-        raise HTTPException(status_code=409, detail=f"租户 {data.tenant_id} 已存在")
+        raise HTTPException(status_code=409, detail={"code": "TENANT_EXISTS", "message": f"租户 {data.tenant_id} 已存在"})
 
     raw_key, hashed, prefix = generate_api_key()
     tenant = Tenant(

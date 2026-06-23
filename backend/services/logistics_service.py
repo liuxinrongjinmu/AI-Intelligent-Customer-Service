@@ -118,7 +118,9 @@ def format_logistics_result(result: dict[str, Any]) -> str:
         if courier:
             courier_info = courier
             if courier_phone:
-                courier_info += f"（{courier_phone}）"
+                # 快递员电话脱敏，仅保留前3后4
+                masked_phone = courier_phone[:3] + "****" + courier_phone[-4:] if len(courier_phone) >= 7 else "****"
+                courier_info += f"（{masked_phone}）"
             parts.append(f"快递员：{courier_info}")
 
         if trail_list:

@@ -4,7 +4,6 @@ LangGraph Agent 图构建：定义节点和路由的完整拓扑
 拓扑结构（按优先级从高到低）：
   START → classify_intent → route_by_intent
     ├─ human_service     → human_service_node → END
-    ├─ refund_operation  → refund_operation_node → END
     ├─ order_query       → order_query_node → END
     ├─ logistics_query   → order_query_node → END（订单+物流联动）
     ├─ product_query     → product_query_node → END
@@ -39,7 +38,6 @@ from backend.agent.nodes import (
     product_query_node,
     coupon_query_node,
     account_query_node,
-    refund_operation_node,
 )
 
 _agent = None
@@ -63,7 +61,6 @@ def build_graph() -> StateGraph:
     graph.add_node("product_query_node", product_query_node)
     graph.add_node("coupon_query_node", coupon_query_node)
     graph.add_node("account_query_node", account_query_node)
-    graph.add_node("refund_operation_node", refund_operation_node)
 
     graph.add_edge(START, "classify_intent")
 
@@ -79,7 +76,6 @@ def build_graph() -> StateGraph:
             "product_query_node": "product_query_node",
             "coupon_query_node": "coupon_query_node",
             "account_query_node": "account_query_node",
-            "refund_operation_node": "refund_operation_node",
         }
     )
 
@@ -93,7 +89,6 @@ def build_graph() -> StateGraph:
     graph.add_edge("product_query_node", END)
     graph.add_edge("coupon_query_node", END)
     graph.add_edge("account_query_node", END)
-    graph.add_edge("refund_operation_node", END)
 
     return graph
 
