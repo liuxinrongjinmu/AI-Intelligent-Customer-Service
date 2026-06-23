@@ -1,4 +1,5 @@
-version: "3.8"
+# docker-compose.yml
+# Compose Spec（无需 version 字段，Docker Engine 19.03+ 自动识别）
 
 services:
   kefu-agent:
@@ -145,7 +146,7 @@ services:
           cpus: "0.5"
           memory: "512M"
 
-  grafana:
+  grafana:12
     image: docker.m.daocloud.io/grafana/grafana:10.4.0
     container_name: kefu-grafana
     restart: unless-stopped

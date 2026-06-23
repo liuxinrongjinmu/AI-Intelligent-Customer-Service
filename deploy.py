@@ -105,11 +105,27 @@ def main():
     # 1. 拉取代码
     run_cmd(ssh, f"cd {deploy_path} && git pull origin master")
 
-    # 2. 部署前备份 SQLite 数据库（防止部署失败导致数据丢失）
+    # 2. 部署前数据库备份（防止部署失败导致数据丢失）
+    # 自动识别数据库类型：优先 PostgreSQL（DATABASE_URL 配置时），回退 SQLite
     print("\n>>> 部署前数据库备份...")
-    run_cmd(ssh, f"cd {deploy_path} && if [ -f data/app.db ]; then cp data/app.db data/app_pre_deploy_$(date +%Y%m%d_%H%M%S).db && echo '备份成功' && ls -lh data/app_pre_deploy_*.db | tail -5; else echo '数据库文件不存在，跳过备份'; fi", timeout=30)
-    # 清理超过7天的旧备份
-    run_cmd(ssh, f"cd {deploy_path} && find data/ -name 'app_pre_deploy_*.db' -mtime +7 -delete 2>/dev/null; echo '旧备份清理完成'")
+    backup_pg_cmd = (
+        f"cd {deploy_path} && "
+        # 通过 docker exec 执行 pg_dump，导出到容器挂载的 data/ 目录
+        f"docker exec kefu-postgres pg_dump -U ${{POSTGRES_USER:-kefu}} ${{POSTGRES_DB:-kefu_agent}} "
+        f"> data/pg_backup_$(date +%Y%m%d_%H%M%S).sql 2>/dev/null "
+        f"&& echo 'PostgreSQL 备份成功' && ls -lh data/pg_backup_*.sql | tail -5 "
+        f"|| echo 'PostgreSQL 备份跳过（容器未运行或未配置）'"
+    )
+    backup_sqlite_cmd = (
+        f"cd {deploy_path} && if [ -f data/app.db ]; then "
+        f"cp data/app.db data/app_pre_deploy_$(date +%Y%m%d_%H%M%S).db "
+        f"&& echo 'SQLite 备份成功' && ls -lh data/app_pre_deploy_*.db | tail -5; "
+        f"else echo 'SQLite 文件不存在，跳过备份'; fi"
+    )
+    run_cmd(ssh, backup_pg_cmd, timeout=60)
+    run_cmd(ssh, backup_sqlite_cmd, timeout=30)
+    # 清理超过7天的旧备份（PostgreSQL + SQLite）
+    run_cmd(ssh, f"cd {deploy_path} && find data/ -name 'pg_backup_*.sql' -mtime +7 -delete 2>/dev/null; find data/ -name 'app_pre_deploy_*.db' -mtime +7 -delete 2>/dev/null; echo '旧备份清理完成'")
 
     # 3. 停止旧容器
     run_cmd(ssh, f"cd {deploy_path} && docker compose down", timeout=60)

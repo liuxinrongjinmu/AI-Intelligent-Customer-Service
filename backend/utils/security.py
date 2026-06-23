@@ -201,3 +201,20 @@ def check_sensitive_content(text: str) -> tuple[bool, str]:
             return True, word
 
     return False, ""
+
+
+def mask_mobile(mobile: str) -> str:
+    """
+    手机号脱敏：保留前3后4，中间用 **** 替代
+
+    统一脱敏规则，避免各 service 文件重复实现导致规则不一致。
+    长度不足 7 位时全部替换为 ****，防止泄露短号。
+
+    :param mobile: 原始手机号字符串
+    :return: 脱敏后的手机号
+    """
+    if not mobile:
+        return ""
+    if len(mobile) < 7:
+        return "****"
+    return mobile[:3] + "****" + mobile[-4:]

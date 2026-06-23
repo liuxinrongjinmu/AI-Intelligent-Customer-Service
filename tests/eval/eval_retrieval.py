@@ -17,11 +17,7 @@ import json
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from backend.retrieval.hybrid_search import hybrid_search, keyword_match_search
-from backend.agent.nodes import _rrf_fuse, _keyword_boost
-from backend.agent.prompts import CLASSIFY_SYSTEM_PROMPT, CLASSIFY_USER_PROMPT
-from backend.config import DEEPSEEK_BASE_URL, DEEPSEEK_API_KEY, DEEPSEEK_MODEL, RETRIEVAL_TOP_K, RETRIEVAL_THRESHOLD
-from langchain_deepseek import ChatDeepSeek
-from langchain_core.messages import SystemMessage, HumanMessage
+from backend.config import RETRIEVAL_TOP_K, RETRIEVAL_THRESHOLD
 from backend.data.eval_dataset import EVALUATION_DATASET
 
 

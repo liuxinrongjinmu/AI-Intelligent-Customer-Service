@@ -157,8 +157,8 @@ def format_coupon_result(result: dict[str, Any]) -> str:
         if nick:
             desc += f"，用户：{nick}"
         if mobile:
-            # 手机号脱敏，仅保留前3后4
-            masked_mobile = mobile[:3] + "****" + mobile[-4:] if len(mobile) >= 7 else "****"
+            # 手机号脱敏（统一调用 mask_mobile，保留前3后4）
+            masked_mobile = mask_mobile(mobile)
             desc += f"，手机：{masked_mobile}"
         parts.append(desc)
 

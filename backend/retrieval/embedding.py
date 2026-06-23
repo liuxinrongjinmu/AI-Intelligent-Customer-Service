@@ -38,7 +38,7 @@ def get_embedding_model():
                 if HF_ENDPOINT:
                     os.environ["HF_ENDPOINT"] = HF_ENDPOINT
 
-                from langchain_community.embeddings import HuggingFaceEmbeddings
+                from langchain_huggingface import HuggingFaceEmbeddings
 
                 _embedding_model = HuggingFaceEmbeddings(
                     model_name=EMBEDDING_MODEL,

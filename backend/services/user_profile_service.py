@@ -13,6 +13,7 @@ from backend.config import (
 )
 from backend.nacos.http_client import nacos_request
 from backend.utils.retry import retry_on_transient_error
+from backend.utils.security import mask_mobile
 
 logger = logging.getLogger(__name__)
 
@@ -106,8 +107,8 @@ def format_user_profile_result(result: dict[str, Any]) -> str:
 
     phone = data.get("phone", "")
     if phone:
-        # 手机号脱敏，仅保留前3后4
-        masked_phone = phone[:3] + "****" + phone[-4:] if len(phone) >= 7 else "****"
+        # 手机号脱敏（统一调用 mask_mobile，保留前3后4）
+        masked_phone = mask_mobile(phone)
         parts.append(f"手机号：{masked_phone}")
 
     level_name = data.get("levelName", "")

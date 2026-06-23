@@ -2,7 +2,7 @@
 文档切片器 + 文本清洗
 """
 import re
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document as LCDocument
 
 from backend.config import DOC_CHUNK_SIZE, DOC_CHUNK_OVERLAP

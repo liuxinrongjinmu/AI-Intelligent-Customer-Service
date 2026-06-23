@@ -209,17 +209,6 @@ GENERATE_USER_PROMPT = """用户问题：{message}
 请回答："""
 
 
-ORDER_QUERY_PROMPT = """你是{tenant_name}的AI客服助手。用户正在查询订单及物流信息。
-
-用户问题：{message}
-
-请回复：
-1. 告知用户订单和物流信息属于实时数据，需要通过系统接口查询
-2. 如果用户已提供订单号，告知正在查询中
-3. 引导用户提供订单号或手机号以便查询
-4. 回复简洁，不超过80字"""
-
-
 HUMAN_SERVICE_PROMPT = """你是{tenant_name}的AI客服助手。用户要求转人工服务。
 
 用户问题：{message}
