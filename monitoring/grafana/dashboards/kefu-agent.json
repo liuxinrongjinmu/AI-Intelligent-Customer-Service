@@ -1,0 +1,162 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "kefu-agent",
+    "title": "AI客服 Agent 监控面板",
+    "tags": ["kefu", "ai", "customer-service"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "15s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "服务状态",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+        "datasource": {"type": "prometheus"},
+        "targets": [
+          {"expr": "up{job=\"kefu-agent\"}", "legendFormat": "状态"}
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"options": {"0": {"text": "离线", "color": "red"}, "1": {"text": "在线", "color": "green"}}, "type": "value"}
+            ]
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "运行时间",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+        "datasource": {"type": "prometheus"},
+        "targets": [
+          {"expr": "kefu_uptime_seconds", "legendFormat": "运行时间"}
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "活跃请求数",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+        "datasource": {"type": "prometheus"},
+        "targets": [
+          {"expr": "kefu_active_requests", "legendFormat": "活跃请求"}
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 20}, {"color": "red", "value": 50}]}
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "聊天消息总数",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+        "datasource": {"type": "prometheus"},
+        "targets": [
+          {"expr": "kefu_chat_messages_total", "legendFormat": "消息总数"}
+        ],
+        "fieldConfig": {"defaults": {"color": {"fixedColor": "blue", "mode": "fixed"}}}
+      },
+      {
+        "id": 5,
+        "title": "错误总数",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+        "datasource": {"type": "prometheus"},
+        "targets": [
+          {"expr": "sum(kefu_errors_total)", "legendFormat": "错误总数"}
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 10}, {"color": "red", "value": 50}]}
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "请求 QPS（按路径）",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "datasource": {"type": "prometheus"},
+        "targets": [
+          {"expr": "sum(rate(kefu_requests_total[1m])) by (path)", "legendFormat": "{{path}}"}
+        ],
+        "fieldConfig": {"defaults": {"unit": "reqps"}}
+      },
+      {
+        "id": 7,
+        "title": "请求延迟（P50/P95/P99）",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "datasource": {"type": "prometheus"},
+        "targets": [
+          {"expr": "kefu_request_latency_ms{quantile=\"0.5\"}", "legendFormat": "P50"},
+          {"expr": "kefu_request_latency_ms{quantile=\"0.95\"}", "legendFormat": "P95"},
+          {"expr": "kefu_request_latency_ms{quantile=\"0.99\"}", "legendFormat": "P99"}
+        ],
+        "fieldConfig": {"defaults": {"unit": "ms"}}
+      },
+      {
+        "id": 8,
+        "title": "LLM 调用次数（按节点）",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "datasource": {"type": "prometheus"},
+        "targets": [
+          {"expr": "sum(rate(kefu_llm_calls_total[5m])) by (node)", "legendFormat": "{{node}}"}
+        ],
+        "fieldConfig": {"defaults": {"unit": "ops"}}
+      },
+      {
+        "id": 9,
+        "title": "错误分布（按类型）",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "datasource": {"type": "prometheus"},
+        "targets": [
+          {"expr": "sum by (type) (kefu_errors_total)", "legendFormat": "{{type}}"}
+        ]
+      },
+      {
+        "id": 10,
+        "title": "HTTP 状态码分布",
+        "type": "bargauge",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 20},
+        "datasource": {"type": "prometheus"},
+        "targets": [
+          {"expr": "sum by (status) (kefu_requests_total)", "legendFormat": "{{status}}"}
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 100},
+                {"color": "red", "value": 500}
+              ]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}

@@ -1,0 +1,26 @@
+# Prometheus 抓取配置
+#
+# 监控 kefu-agent 应用的运行指标
+global:
+  scrape_interval: 15s      # 每15秒抓取一次
+  evaluation_interval: 15s  # 每15秒评估一次告警规则
+
+# 告警规则文件
+rule_files:
+  - "alerts.yml"
+
+# 抓取目标
+scrape_configs:
+  # kefu-agent 应用指标
+  - job_name: "kefu-agent"
+    metrics_path: "/api/v1/system/metrics"
+    static_configs:
+      - targets: ["kefu-agent:8080"]
+        labels:
+          service: "kefu-agent"
+          env: "prod"
+
+  # Prometheus 自身指标
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

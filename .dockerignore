@@ -1,0 +1,62 @@
+# Python 缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# 环境与密钥
+.env
+.env.local
+.env.production
+
+# 运行时数据（Docker 内由 volume 挂载）
+data/
+*.db
+*.db-shm
+*.db-wal
+chroma_db/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 测试与缓存
+tests/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# 临时文件
+*.log
+*.tmp
+temp_*.py
+
+# 文档与素材（不需要进入镜像）
+*.md
+ai-cs-materials/
+_backup_scripts/
+_*.py
+
+# Git
+.git/
+.gitignore
+
+# 部署脚本（不需要进入镜像）
+deploy.py
+
+# Docker 相关（不需要进入镜像）
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# 开发工具配置（requirements-lock.txt 需要保留，Dockerfile 中 COPY 使用）
+requirements.txt
+ruff.toml
+pyproject.toml

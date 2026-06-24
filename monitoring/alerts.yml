@@ -1,0 +1,88 @@
+# Prometheus 告警规则
+#
+# 触发条件 → 告警通知
+groups:
+  - name: kefu-agent-alerts
+    rules:
+      # ─── 严重告警 ──────────────────────────────────────────
+
+      # 服务不可用（连续3次健康检查失败）
+      - alert: ServiceDown
+        expr: up{job="kefu-agent"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "kefu-agent 服务不可用"
+          description: "服务已离线超过 1 分钟，请立即检查"
+
+      # 错误率过高（5xx 错误率 > 5%）
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(kefu_requests_total{status=~"5.."}[5m]))
+          /
+          sum(rate(kefu_requests_total[5m]))
+          > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "错误率过高 ({{ $value | humanizePercentage }})"
+          description: "5xx 错误率超过 5%，持续 2 分钟"
+
+      # LLM 调用全部失败
+      - alert: LLMCallsFailed
+        expr: increase(kefu_errors_total{type="llm_call_failed"}[5m]) > 3
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "LLM 调用连续失败"
+          description: "5分钟内 LLM 调用失败 {{ $value }} 次"
+
+      # ─── 警告级别 ──────────────────────────────────────────
+
+      # P99 延迟过高
+      - alert: HighLatency
+        expr: |
+          kefu_request_latency_ms{quantile="0.99"} > 5000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P99 延迟过高 ({{ $value }}ms)"
+          description: "请求 P99 延迟超过 5 秒，持续 5 分钟"
+
+      # 活跃请求数过高
+      - alert: HighActiveRequests
+        expr: kefu_active_requests > 50
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "活跃请求数过高 ({{ $value }})"
+          description: "当前活跃请求数超过 50，可能存在性能瓶颈"
+
+      # 聊天消息量异常增长
+      - alert: ChatMessageSpike
+        expr: increase(kefu_chat_messages_total[10m]) > 500
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "聊天消息量激增"
+          description: "10分钟内消息量超过 500 条"
+
+      # 转人工率过高
+      - alert: HighHandoffRate
+        expr: |
+          sum(rate(kefu_requests_total{path=~".*handoff.*"}[10m]))
+          /
+          sum(rate(kefu_chat_messages_total[10m]))
+          > 0.3
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "转人工率过高 ({{ $value | humanizePercentage }})"
+          description: "转人工率超过 30%，AI 解决率偏低"

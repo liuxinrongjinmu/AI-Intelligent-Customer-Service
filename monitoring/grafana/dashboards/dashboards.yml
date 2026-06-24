@@ -1,0 +1,14 @@
+# Grafana 仪表盘自动导入配置
+#
+# 启动时自动加载 dashboards/ 目录下的 JSON 仪表盘
+apiVersion: 1
+
+providers:
+  - name: "kefu-agent-dashboards"
+    orgId: 1
+    folder: "AI客服"
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

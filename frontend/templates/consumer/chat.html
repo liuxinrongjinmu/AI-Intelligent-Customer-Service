@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}AI客服对话 — {{ tenant_id }}{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/chat.css">
+{% endblock %}
+{% block body %}
+<div class="chat-container">
+    <div class="chat-navbar">
+        <div class="chat-navbar-title">
+            AI客服
+            <span class="ai-badge">AI</span>
+        </div>
+        <div class="chat-navbar-status" id="statusText"></div>
+        <button class="btn-new-session" id="newSessionBtn">+ 新会话</button>
+    </div>
+
+    <div class="chat-area" id="chatArea">
+        <div class="system-msg">欢迎使用AI客服，请输入您的问题</div>
+    </div>
+
+    <div class="quick-questions" id="quickQuestions">
+        <button type="button" class="quick-question-btn" data-q="查询订单状态">查询订单状态</button>
+        <button type="button" class="quick-question-btn" data-q="退货政策是什么？">退货政策是什么？</button>
+        <button type="button" class="quick-question-btn" data-q="怎么使用优惠券？">怎么使用优惠券？</button>
+        <button type="button" class="quick-question-btn" data-q="转人工客服">转人工客服</button>
+    </div>
+
+    <div class="chat-input-area">
+        <div class="status-bar" id="statusText2"></div>
+        <div class="typing-indicator" id="typingIndicator">
+            <div class="typing-avatar">AI</div>
+            <div class="typing-dots">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+        <div class="chat-input-row">
+            <textarea class="chat-input" id="messageInput"
+                      placeholder="输入您的问题..." rows="1"
+                      maxlength="2000"></textarea>
+            <button class="btn-send" id="sendBtn" title="发送">➤</button>
+        </div>
+    </div>
+</div>
+
+<script>window.TENANT_ID = {{ tenant_id | tojson }};</script>
+<script src="/static/js/chat.js"></script>
+{% endblock %}

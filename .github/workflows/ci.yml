@@ -1,0 +1,79 @@
+# CI/CD 流水线 — 单元测试 + 代码质量检查
+# 触发条件：push/PR 到 master 分支
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"  # 缓存 pip 下载，加速 CI
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: 代码风格检查（ruff）
+        run: ruff check backend/ tests/
+
+      - name: 类型检查（mypy）
+        run: mypy backend/ --ignore-missing-imports --no-strict-optional || true
+
+      - name: 单元测试
+        env:
+          SKIP_E2E: "true"
+          DEEPSEEK_API_KEY: "test-key-placeholder"
+          ADMIN_API_KEY: "test-admin-key"
+        run: pytest tests/unit/ -v --tb=short --maxfail=5
+
+      - name: 测试覆盖率
+        env:
+          SKIP_E2E: "true"
+          DEEPSEEK_API_KEY: "test-key-placeholder"
+          ADMIN_API_KEY: "test-admin-key"
+        run: pytest tests/unit/ --cov=backend --cov-report=term-missing --cov-fail-under=70
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker 镜像构建验证
+        run: docker build -t kefu-agent:ci-test .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 构建并推送 Docker 镜像
+        run: |
+          docker build -t kefu-agent:${{ github.sha }} .
+          echo "镜像构建完成: kefu-agent:${{ github.sha }}"
+          # TODO: 配置镜像仓库后取消注释
+          # docker login -u ${{ secrets.REGISTRY_USER }} -p ${{ secrets.REGISTRY_PASS }}
+          # docker push your-registry/kefu-agent:${{ github.sha }}
+
+      - name: 部署到生产环境
+        run: |
+          echo "自动部署待配置（需 SSH 密钥和目标服务器）"
+          # TODO: 配置后取消注释
+          # python deploy.py --server ${{ secrets.DEPLOY_SERVER }}
