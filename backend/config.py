@@ -23,7 +23,8 @@ CHROMA_PATH = os.getenv("CHROMA_PATH", "data/chroma_db")
 
 # PostgreSQL 数据库连接串（必填）
 # 示例：postgresql://kefu:kefu_pwd@localhost:5432/kefu_agent
-DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://kefu:kefu_pwd@localhost:5432/kefu_agent").strip()
+# 生产环境必须通过环境变量配置，不应依赖默认值
+DATABASE_URL: str = os.getenv("DATABASE_URL", "").strip()
 
 RETRIEVAL_TOP_K = int(os.getenv("RETRIEVAL_TOP_K", "5"))
 RETRIEVAL_THRESHOLD = float(os.getenv("RETRIEVAL_THRESHOLD", "0.2"))
@@ -47,7 +48,8 @@ HOST = os.getenv("HOST", "127.0.0.1")
 PORT = int(os.getenv("PORT", "8081"))
 
 # Swagger UI 服务器地址（用于内网联调时 "Try it out" 功能生成正确的请求 URL）
-SWAGGER_SERVER_URL: str = os.getenv("SWAGGER_SERVER_URL", f"http://192.168.0.234:{PORT}")
+# 必须通过环境变量配置，无默认值（避免硬编码内网 IP）
+SWAGGER_SERVER_URL: str = os.getenv("SWAGGER_SERVER_URL", "")
 
 # 管理接口认证密钥（仅管理接口使用，服务间接口走 Gateway 认证）
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "change-me-admin-key")
@@ -116,7 +118,10 @@ def validate_config():
     if GATEWAY_IP_WHITELIST == "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16":
         warnings.append("GATEWAY_IP_WHITELIST 使用默认值（覆盖所有内网段），生产环境建议缩小为 Gateway 所在的具体网段")
     if not ADMIN_API_KEY or ADMIN_API_KEY == "change-me-admin-key":
-        warnings.append("ADMIN_API_KEY 使用默认弱密钥，生产环境必须修改")
+        if ENV == "prod":
+            errors.append("ADMIN_API_KEY 使用默认弱密钥，生产环境拒绝启动")
+        else:
+            warnings.append("ADMIN_API_KEY 使用默认弱密钥，生产环境必须修改")
     if GATEWAY_VERIFIED_VALUE.lower() == "true":
         warnings.append("GATEWAY_VERIFIED_VALUE 使用弱默认值 'true'，生产环境必须修改为不可猜测的随机值")
     return warnings, errors

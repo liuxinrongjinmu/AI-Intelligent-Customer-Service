@@ -12,6 +12,7 @@ import threading
 import uuid
 from collections import defaultdict
 from threading import Lock
+from typing import Optional
 import httpx
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -21,7 +22,7 @@ from backend.utils.redis_client import get_redis
 
 logger = logging.getLogger(__name__)
 
-_shared_client: httpx.AsyncClient | None = None
+_shared_client: Optional[httpx.AsyncClient] = None
 _shared_client_lock = threading.Lock()
 
 

@@ -47,9 +47,10 @@ WORKDIR /app
 RUN sed -i "s|http://deb.debian.org|http://mirrors.aliyun.com|g" /etc/apt/sources.list.d/debian.sources && \
     sed -i "s|http://security.debian.org|http://mirrors.aliyun.com|g" /etc/apt/sources.list.d/debian.sources
 
-# 运行时仅需 curl（健康检查）+ pg_dump（数据库备份），无需 build-essential
+# 运行时仅需 curl（健康检查）+ gosu（权限降级）+ pg_dump（数据库备份），无需 build-essential
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    gosu \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
@@ -61,15 +62,20 @@ COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # 仅复制项目必要文件（.dockerignore 控制排除范围）
-COPY backend/ backend/
-COPY frontend/ frontend/
-COPY monitoring/ monitoring/
+# --chown 确保非 root 用户（appuser）有权限读取和执行
+COPY --chown=appuser:appuser backend/ backend/
+COPY --chown=appuser:appuser frontend/ frontend/
+COPY --chown=appuser:appuser monitoring/ monitoring/
+COPY --chown=appuser:appuser docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
-RUN mkdir -p data && chown -R appuser:appuser data
+RUN mkdir -p data/chroma_db data/backups && chown -R appuser:appuser data
 
 ENV PYTHONUNBUFFERED=1
 ENV HOST=0.0.0.0
 ENV PORT=8080
+# HuggingFace 镜像站（国内加速模型下载）
+ENV HF_ENDPOINT=https://hf-mirror.com
 # Worker 数量，生产环境建议根据 CPU 核数调整
 ENV WORKERS=1
 # 生产环境关闭 Swagger UI（设为 1 启用，0 关闭）
@@ -77,7 +83,8 @@ ENV ENABLE_DOCS=0
 
 EXPOSE 8080
 
-USER appuser
+# 容器以 root 启动，entrypoint 修复卷权限后降权为 appuser
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 # 使用 curl 健康检查，比 python -c 启动更快
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \

@@ -6,6 +6,7 @@ Nacos 服务注册管理器
 import asyncio
 import logging
 import socket
+from typing import Optional
 import nacos
 from backend.config import (
     NACOS_SERVER_ADDR,
@@ -20,7 +21,9 @@ from backend.config import (
 logger = logging.getLogger(__name__)
 
 # 全局注册客户端实例
-_nacos_registry_client: nacos.NacosClient | None = None
+_nacos_registry_client: Optional[nacos.NacosClient] = None
+# 注册状态标记
+_registration_status: bool = False
 
 
 def _get_local_ip() -> str:
@@ -76,6 +79,8 @@ async def register_service() -> bool:
             metadata={"version": "1.0.0", "language": "python"},
         )
         logger.info(f"服务注册成功: {SERVICE_NAME} @ {ip}:{SERVICE_PORT}, group={NACOS_GROUP}")
+        global _registration_status
+        _registration_status = True
         return True
     except Exception as e:
         logger.error(f"服务注册失败: {e}")
@@ -99,6 +104,8 @@ async def deregister_service() -> bool:
             group_name=NACOS_GROUP,
         )
         logger.info(f"服务注销成功: {SERVICE_NAME} @ {ip}:{SERVICE_PORT}")
+        global _registration_status
+        _registration_status = False
         return True
     except Exception as e:
         logger.error(f"服务注销失败: {e}")
@@ -145,3 +152,12 @@ async def heartbeat_loop(interval: int = 5):
             break
         except Exception as e:
             logger.error(f"心跳循环异常: {e}")
+
+
+def is_registered() -> bool:
+    """
+    查询当前服务是否已注册到 Nacos
+
+    :return: 是否已注册
+    """
+    return _registration_status

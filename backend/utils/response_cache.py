@@ -11,6 +11,7 @@ import json
 import time
 import hashlib
 import logging
+from typing import Optional
 from collections import OrderedDict
 from threading import Lock
 
@@ -96,7 +97,7 @@ def _make_redis_key(category: str, text: str) -> str:
     return f"{_REDIS_KEY_PREFIX}{category}:{hashed}"
 
 
-def get_cached_intent(message: str, tenant_id: str = "") -> dict | None:
+def get_cached_intent(message: str, tenant_id: str = "") -> Optional[dict]:
     """
     获取缓存的意图分类结果
 
@@ -109,7 +110,7 @@ def get_cached_intent(message: str, tenant_id: str = "") -> dict | None:
     return intent_cache.get(key)
 
 
-async def get_cached_intent_async(message: str, tenant_id: str = "") -> dict | None:
+async def get_cached_intent_async(message: str, tenant_id: str = "") -> Optional[dict]:
     """
     获取缓存的意图分类结果（Redis 优先 + 内存降级）
 
@@ -170,13 +171,13 @@ async def set_cached_intent_async(message: str, result: dict, tenant_id: str = "
             logger.debug(f"Redis 写入意图缓存失败，仅内存缓存生效: {e}")
 
 
-def get_cached_answer(message: str, tenant_id: str) -> str | None:
+def get_cached_answer(message: str, tenant_id: str) -> Optional[str]:
     """获取缓存的热点答案"""
     key = f"{tenant_id}:{message}"
     return answer_cache.get(key)
 
 
-async def get_cached_answer_async(message: str, tenant_id: str) -> str | None:
+async def get_cached_answer_async(message: str, tenant_id: str) -> Optional[str]:
     """
     获取缓存的热点答案（Redis 优先 + 内存降级）
 

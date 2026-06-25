@@ -110,7 +110,7 @@ async def lifespan(app: FastAPI):
     if errors:
         for e in errors:
             logger.error(f"配置错误: {e}")
-        logger.warning("配置校验存在错误，请尽快修复")
+        raise RuntimeError(f"配置校验失败，拒绝启动: {'; '.join(errors)}")
     logger.info("初始化数据库...")
     init_db()
     # 数据库自动备份
@@ -155,6 +155,10 @@ _docs_enabled = os.getenv("ENABLE_DOCS", "1") == "1" and ENV != "prod"
 docs_url = "/docs" if _docs_enabled else None
 redoc_url = "/redoc" if _docs_enabled else None
 
+_servers = [{"url": f"http://localhost:{PORT}", "description": "本地开发环境"}]
+if SWAGGER_SERVER_URL:
+    _servers.insert(0, {"url": SWAGGER_SERVER_URL, "description": "内网联调环境"})
+
 app = FastAPI(
     title="聚宝赞AI智能客服Agent",
     description="多租户AI客服系统 - MVP版本",
@@ -162,10 +166,7 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url=docs_url,
     redoc_url=redoc_url,
-    servers=[
-        {"url": SWAGGER_SERVER_URL, "description": "内网联调环境"},
-        {"url": f"http://localhost:{PORT}", "description": "本地开发环境"},
-    ],
+    servers=_servers,
 )
 
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",")

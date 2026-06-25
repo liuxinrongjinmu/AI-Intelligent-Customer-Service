@@ -3,6 +3,7 @@
 """
 import uuid
 from datetime import datetime, timezone
+from typing import Union
 
 
 def utcnow() -> datetime:
@@ -24,7 +25,7 @@ def generate_uuid() -> str:
     return str(uuid.uuid4())
 
 
-def resolve_tenant_id(tenant_id: str) -> str | int:
+def resolve_tenant_id(tenant_id: str) -> Union[str, int]:
     """
     将我方字符串 tenant_id 映射为聚宝赞端 int64 tenantId
 

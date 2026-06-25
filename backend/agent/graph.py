@@ -42,6 +42,7 @@ from backend.agent.nodes import (
 _agent = None
 _agent_lock = asyncio.Lock()
 _checkpointer = None
+_checkpointer_ctx = None  # 保持上下文管理器活跃，避免连接被关闭
 
 
 def build_graph() -> StateGraph:
@@ -95,10 +96,15 @@ def build_graph() -> StateGraph:
 async def build_graph_async() -> StateGraph:
     """
     构建并编译 Agent 图（异步版本，使用 AsyncPostgresSaver 持久化）
+
+    langgraph-checkpoint-postgres 3.0+ 的 from_conn_string 返回异步上下文管理器，
+    需要手动管理其生命周期：启动时进入，应用关闭时退出。
     """
-    global _checkpointer
+    global _checkpointer, _checkpointer_ctx
     try:
-        memory = AsyncPostgresSaver.from_conn_string(DATABASE_URL)
+        # 手动进入上下文管理器，保持连接活跃
+        _checkpointer_ctx = AsyncPostgresSaver.from_conn_string(DATABASE_URL)
+        memory = await _checkpointer_ctx.__aenter__()
         await memory.setup()
         _checkpointer = memory
         graph = build_graph()
@@ -106,6 +112,12 @@ async def build_graph_async() -> StateGraph:
     except Exception as e:
         logger.warning(f"Checkpoint 连接失败: {e}")
         _checkpointer = None
+        if _checkpointer_ctx:
+            try:
+                await _checkpointer_ctx.__aexit__(None, None, None)
+            except Exception:
+                pass
+            _checkpointer_ctx = None
         raise
 
 
@@ -123,10 +135,16 @@ async def get_agent() -> StateGraph:
 
 async def close_agent():
     """
-    关闭 Agent 资源（AsyncPostgresSaver 无需显式关闭连接）
+    关闭 Agent 资源（退出上下文管理器，释放数据库连接）
     在应用 lifespan shutdown 时调用
     """
-    global _agent, _checkpointer
+    global _agent, _checkpointer, _checkpointer_ctx
     async with _agent_lock:
-        _checkpointer = None
         _agent = None
+        _checkpointer = None
+        if _checkpointer_ctx:
+            try:
+                await _checkpointer_ctx.__aexit__(None, None, None)
+            except Exception as e:
+                logger.warning(f"关闭 Checkpoint 连接异常: {e}")
+            _checkpointer_ctx = None

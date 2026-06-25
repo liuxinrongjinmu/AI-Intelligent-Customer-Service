@@ -928,19 +928,16 @@ async def human_service_node(state: AgentState) -> dict:
     try:
         from backend.database import SessionLocal
         from backend.models.conversation import Conversation
-        _db = SessionLocal()
-        try:
-            conv = _db.query(Conversation).filter_by(thread_id=thread_id).first()
+        with SessionLocal() as db:
+            conv = db.query(Conversation).filter_by(thread_id=thread_id).first()
             if conv and conv.status == "ai_serving":
                 conv.transfer_to_human(
                     priority=5,
                     summary=history[:500],
                     tags=["转人工", reason],
                 )
-                _db.commit()
+                db.commit()
                 logger.info(f"会话状态已更新为 human_serving: thread={thread_id}")
-        finally:
-            _db.close()
     except Exception as e:
         logger.warning(f"更新会话状态失败(不影响主流程): {e}")
 

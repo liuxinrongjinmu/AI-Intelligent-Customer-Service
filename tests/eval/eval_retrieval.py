@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from backend.retrieval.hybrid_search import hybrid_search, keyword_match_search
 from backend.config import RETRIEVAL_TOP_K, RETRIEVAL_THRESHOLD
-from backend.data.eval_dataset import EVALUATION_DATASET
+from eval_dataset import EVALUATION_DATASET
 
 
 def run_evaluation():

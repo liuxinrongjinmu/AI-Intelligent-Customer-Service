@@ -4,10 +4,11 @@
 仅对超过 chunk_size 的长文档进行分块，短文档保持不变。
 分块时保留原始文档 ID，通过后缀 _chunk_N 区分。
 """
+from typing import Optional
 from backend.config import DOC_CHUNK_SIZE, DOC_CHUNK_OVERLAP
 
 
-def chunk_document(doc_id: str, content: str, metadata: dict | None = None,
+def chunk_document(doc_id: str, content: str, metadata: Optional[dict] = None,
                    chunk_size: int = DOC_CHUNK_SIZE,
                    chunk_overlap: int = DOC_CHUNK_OVERLAP) -> list[dict]:
     """

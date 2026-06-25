@@ -45,7 +45,7 @@ groups:
       # P99 延迟过高
       - alert: HighLatency
         expr: |
-          kefu_request_latency_ms{quantile="0.99"} > 5000
+          kefu_request_duration_ms{quantile="0.99"} > 5000
         for: 5m
         labels:
           severity: warning

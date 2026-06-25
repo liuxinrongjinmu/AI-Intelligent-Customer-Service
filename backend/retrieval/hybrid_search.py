@@ -14,6 +14,7 @@
 """
 import os
 import logging
+from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from backend.retrieval.embedding import embed_query_cached
 from backend.retrieval.vector_store import query_collection, get_collection, KB_COLLECTIONS
@@ -77,8 +78,8 @@ def _parse_chromadb_result(raw: dict) -> list[dict]:
 def keyword_match_search(
     keywords: list[str],
     tenant_id: str,
-    kb_types: list[str] | None = None,
-    top_k: int | None = None,
+    kb_types: Optional[list[str]] = None,
+    top_k: Optional[int] = None,
     min_hits: int = 2
 ) -> list[dict]:
     """
@@ -247,10 +248,10 @@ def _query_single_collection(tenant_id: str, kb_type: str,
 def hybrid_search(
     query: str,
     tenant_id: str,
-    kb_types: list[str] | None = None,
-    keywords: list[str] | None = None,
-    top_k: int | None = None,
-    relevance_threshold: float | None = None
+    kb_types: Optional[list[str]] = None,
+    keywords: Optional[list[str]] = None,
+    top_k: Optional[int] = None,
+    relevance_threshold: Optional[float] = None
 ) -> list[dict]:
     """
     混合检索：向量语义检索 + 关键词文本匹配 + RRF 融合

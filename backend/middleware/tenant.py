@@ -8,6 +8,7 @@ import time
 import logging
 import threading
 from collections import OrderedDict
+from contextlib import contextmanager
 from typing import Optional
 from fastapi import Request, HTTPException, Depends
 from sqlalchemy.exc import SQLAlchemyError
@@ -30,7 +31,7 @@ _KEY_CACHE_MAX_SIZE = 200
 _KEY_CACHE_TTL = 300  # 5 分钟
 
 
-def _get_cached_tenant(tenant_id: str) -> Tenant | None:
+def _get_cached_tenant(tenant_id: str) -> Optional[Tenant]:
     """从缓存获取租户信息"""
     with _tenant_cache_lock:
         if tenant_id in _tenant_cache:
@@ -52,7 +53,7 @@ def _set_cached_tenant(tenant_id: str, tenant: Tenant):
             _tenant_cache.popitem(last=False)
 
 
-def _get_cached_key(api_key_hash: str) -> str | None:
+def _get_cached_key(api_key_hash: str) -> Optional[str]:
     """从缓存获取 API Key → tenant_id 映射"""
     with _key_cache_lock:
         if api_key_hash in _key_cache:
@@ -78,6 +79,21 @@ def invalidate_tenant_cache(tenant_id: str):
     """使指定租户缓存失效（租户信息变更时调用）"""
     with _tenant_cache_lock:
         _tenant_cache.pop(tenant_id, None)
+
+
+@contextmanager
+def _ensure_db_session(db=None):
+    """
+    确保数据库会话可用：复用已有会话或创建新会话
+
+    :param db: 已有的数据库会话（可选）
+    :yield: 可用的数据库会话
+    """
+    if db is not None:
+        yield db
+    else:
+        with SessionLocal() as session:
+            yield session
 
 
 async def verify_tenant_api_key(
@@ -106,30 +122,24 @@ async def verify_tenant_api_key(
             return tenant
 
     # 缓存未命中，查数据库（优先复用请求级会话）
-    own_session = False
-    if db is None:
-        db = SessionLocal()
-        own_session = True
     try:
-        tenant = db.query(Tenant).filter_by(api_key_hash=hashed, is_active=True).first()
-        if not tenant:
-            raise HTTPException(status_code=403, detail="无效的 API Key")
+        with _ensure_db_session(db) as session:
+            tenant = session.query(Tenant).filter_by(api_key_hash=hashed, is_active=True).first()
+            if not tenant:
+                raise HTTPException(status_code=403, detail="无效的 API Key")
 
-        # 脱离 Session，避免 DetachedInstanceError
-        db.expunge(tenant)
+            # 脱离 Session，避免 DetachedInstanceError
+            session.expunge(tenant)
 
-        # 写入缓存
-        _set_cached_key(hashed, tenant.tenant_id)
-        _set_cached_tenant(tenant.tenant_id, tenant)
+            # 写入缓存
+            _set_cached_key(hashed, tenant.tenant_id)
+            _set_cached_tenant(tenant.tenant_id, tenant)
 
-        request.state.tenant = tenant
-        return tenant
+            request.state.tenant = tenant
+            return tenant
     except SQLAlchemyError as e:
         logger.error(f"租户鉴权数据库异常: {e}")
         raise HTTPException(status_code=500, detail="服务暂时不可用，请稍后重试")
-    finally:
-        if own_session and db:
-            db.close()
 
 
 def get_tenant_from_path(
@@ -151,26 +161,20 @@ def get_tenant_from_path(
         return tenant
 
     # 缓存未命中，查数据库（优先复用请求级会话）
-    own_session = False
-    if db is None:
-        db = SessionLocal()
-        own_session = True
     try:
-        tenant = db.query(Tenant).filter_by(tenant_id=tenant_id, is_active=True).first()
-        if not tenant:
-            raise HTTPException(status_code=404, detail=f"租户 {tenant_id} 不存在")
+        with _ensure_db_session(db) as session:
+            tenant = session.query(Tenant).filter_by(tenant_id=tenant_id, is_active=True).first()
+            if not tenant:
+                raise HTTPException(status_code=404, detail=f"租户 {tenant_id} 不存在")
 
-        # 脱离 Session，避免 DetachedInstanceError
-        db.expunge(tenant)
+            # 脱离 Session，避免 DetachedInstanceError
+            session.expunge(tenant)
 
-        # 写入缓存
-        _set_cached_tenant(tenant_id, tenant)
+            # 写入缓存
+            _set_cached_tenant(tenant_id, tenant)
 
-        request.state.tenant = tenant
-        return tenant
+            request.state.tenant = tenant
+            return tenant
     except SQLAlchemyError as e:
         logger.error(f"租户查询数据库异常: {e}")
         raise HTTPException(status_code=500, detail="服务暂时不可用，请稍后重试")
-    finally:
-        if own_session and db:
-            db.close()

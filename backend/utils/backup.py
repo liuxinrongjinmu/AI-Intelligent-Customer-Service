@@ -15,6 +15,7 @@ import re
 import shutil
 import subprocess
 import time
+from typing import Optional
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -29,7 +30,7 @@ BACKUP_INTERVAL_SECONDS = 3600       # 备份间隔：1小时
 MAX_HOURLY_BACKUPS = 24              # 保留最近 24 个每小时备份
 MAX_DAILY_BACKUPS = 7                # 保留最近 7 个每日快照
 
-_backup_task: asyncio.Task | None = None
+_backup_task: Optional[asyncio.Task] = None
 
 
 def _ensure_backup_dir():
@@ -118,7 +119,7 @@ def _backup_postgres(backup_path: Path) -> bool:
         return False
 
 
-def backup_now() -> str | None:
+def backup_now() -> Optional[str]:
     """
     立即执行一次数据库备份
 

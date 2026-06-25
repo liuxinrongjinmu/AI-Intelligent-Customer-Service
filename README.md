@@ -274,7 +274,7 @@ python chat.py
 |--------|--------|------|
 | `HOST` | `127.0.0.1` | 监听地址 |
 | `PORT` | `8081` | 监听端口 |
-| `ADMIN_API_KEY` | `kefu-admin-dev-key` | 管理接口认证密钥 |
+| `ADMIN_API_KEY` | `change-me-admin-key` | 管理接口认证密钥 |
 | `GATEWAY_VERIFIED_HEADER` | `X-Gateway-Verified` | Gateway 验证头名称 |
 | `GATEWAY_IP_WHITELIST` | `10.0.0.0/8,172.16.0.0/12,192.168.0.0/16` | Gateway/VPN 网段 IP 白名单 |
 
@@ -380,7 +380,6 @@ kefu_agent/
 │   │   └── tenant.py           # 租户上下文中间件
 │   ├── models/                 # 数据库模型
 │   │   ├── conversation.py     # 对话 + 消息
-│   │   ├── feedback.py         # 满意度反馈
 │   │   ├── handoff.py          # 转人工工单
 │   │   ├── knowledge.py        # 知识库
 │   │   └── tenant.py           # 租户

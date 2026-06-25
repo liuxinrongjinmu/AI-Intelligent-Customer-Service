@@ -12,6 +12,7 @@
 import logging
 import os
 import time
+from typing import Optional
 
 from backend.retrieval.vector_store import (
     clear_collection, add_to_collection_sync, delete_from_collection, get_collection
@@ -165,7 +166,7 @@ def process_batch(
     tenant_id: str,
     kb_type: str,
     items: list[dict],
-    delete_ids: list[str] | None = None,
+    delete_ids: Optional[list[str]] = None,
 ) -> dict:
     """
     实时处理批量增删

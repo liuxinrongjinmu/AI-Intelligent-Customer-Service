@@ -102,11 +102,9 @@ async def get_redis() -> Optional[redis_async.Redis]:
             _redis_client = redis_async.from_url(
                 REDIS_URL,
                 password=REDIS_PASSWORD or None,
-                encoding="utf-8",
                 decode_responses=True,
                 socket_timeout=2.0,
                 socket_connect_timeout=2.0,
-                retry_on_timeout=True,
                 health_check_interval=30,  # 每 30 秒发送 PING 保活
             )
             await _redis_client.ping()

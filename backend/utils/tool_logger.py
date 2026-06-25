@@ -42,8 +42,7 @@ async def log_tool_call(
     """
     def _write():
         try:
-            db = SessionLocal()
-            try:
+            with SessionLocal() as db:
                 log = ToolCallLog(
                     conversation_id=conversation_id,
                     tenant_id=tenant_id,
@@ -56,8 +55,6 @@ async def log_tool_call(
                 )
                 db.add(log)
                 db.commit()
-            finally:
-                db.close()
         except Exception as e:
             logger.warning(f"写入工具调用日志失败: {e}")
 

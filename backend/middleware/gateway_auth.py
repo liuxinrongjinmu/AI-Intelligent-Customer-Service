@@ -13,6 +13,8 @@ Gateway 认证中间件
 - Gateway 认证场景：仅使用 TCP 对端 IP（request.client.host），不信任 X-Real-IP / X-Forwarded-For
 - 限流场景：可信任反向代理注入的头（通过 trusted_proxy=True 参数）
 """
+from __future__ import annotations
+
 import ipaddress
 import logging
 import threading

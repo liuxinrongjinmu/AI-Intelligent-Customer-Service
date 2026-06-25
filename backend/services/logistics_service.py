@@ -10,7 +10,7 @@ from backend.config import (
     LOGISTICS_API_TIMEOUT,
     LOGISTICS_SERVICE_NAME,
 )
-from backend.nacos.http_client import nacos_request
+from backend.nacos.nacos_client import nacos_request
 from backend.utils.retry import retry_on_transient_error
 from backend.utils.helpers import resolve_tenant_id
 
