@@ -1,0 +1,26 @@
+# 生产环境 docker-compose 覆盖文件
+# 连接服务器上已有的 Redis、Nacos（network 网络），仅启动 kefu-agent + postgres
+#
+# 使用方式：docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env up -d
+
+services:
+  kefu-agent:
+    # 加入服务器已有的 network 网络，与 Redis、Nacos 互通
+    networks:
+      - default
+      - network
+    # 生产环境不需要 depends_on redis（使用外部 Redis）
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # 覆盖 Redis URL，指向 network 网络中的外部 Redis
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+
+  postgres:
+    networks:
+      - default
+
+networks:
+  network:
+    external: true
