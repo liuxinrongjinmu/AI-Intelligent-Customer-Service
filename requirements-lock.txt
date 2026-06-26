@@ -1,25 +1,25 @@
-﻿# ============================================================
-# 精确版本锁定文件（由 pip freeze 自动生成，确保依赖兼容）
-# 基于 requirements.txt 版本范围，pip 自动解析所有传递依赖
+# ============================================================
+# 精确版本锁定文件（由 pip freeze 生成，基于当前工作环境）
 # 安装命令：pip install -r requirements-lock.txt
 # Docker 构建时配合 PIP_EXTRA_INDEX_URL 选择 PyTorch CPU 版本
+# 生成日期：2026-06-26
 # ============================================================
 
 # PyTorch CPU 版本索引（避免拉取 CUDA 版本，镜像从 9GB 降至 3-4GB）
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 # ─── Web 框架 ────────────────────────────────────────────────
-fastapi==0.138.0
-uvicorn==0.49.0
-starlette==0.52.1
+fastapi==0.128.8
+uvicorn==0.39.0
+starlette==0.48.0
 Jinja2==3.1.6
-python-multipart==0.0.32
+python-multipart==0.0.20
 
 # ─── 数据库 ──────────────────────────────────────────────────
-SQLAlchemy==2.0.51
-alembic==1.18.4
-psycopg2-binary==2.9.12
-asyncpg==0.31.0
+SQLAlchemy==2.0.41
+alembic==1.16.5
+psycopg2-binary==2.9.10
+asyncpg==0.30.0
 
 # ─── LangChain 生态 ──────────────────────────────────────────
 langchain==0.3.30
@@ -30,195 +30,196 @@ langchain-huggingface==0.3.1
 langchain-openai==0.3.35
 langchain-deepseek==0.1.4
 langgraph==0.6.11
-langgraph-checkpoint==3.0.1
-langgraph-checkpoint-postgres==3.0.5
+langgraph-checkpoint==2.1.2
+langgraph-checkpoint-postgres==2.0.25
 langgraph-prebuilt==0.6.5
-langgraph-sdk==0.2.15
-langsmith==0.9.1
-psycopg==3.3.4
-psycopg-pool==3.3.1
+langgraph-sdk==0.2.9
+langsmith==0.4.52
+psycopg==3.2.9
+psycopg-pool==3.2.6
 
 # ─── 向量 & Embedding ────────────────────────────────────────
 chromadb==1.5.9
-sentence-transformers==5.6.0
+sentence-transformers==5.1.2
 
 # ─── 文档处理 ────────────────────────────────────────────────
-pypdf==6.14.2
-Markdown==3.10.2
+pypdf==5.8.0
+Markdown==3.7
 
 # ─── 工具 ────────────────────────────────────────────────────
-python-dotenv==1.2.2
+python-dotenv==1.1.1
 pydantic==2.13.4
-httpx==0.28.1
+httpx==0.27.2
 nacos-sdk-python==2.0.11
-redis==8.0.1
+redis==7.0.1
 prometheus_client==0.25.0
 
 # ─── 传递依赖 ────────────────────────────────────────────────
 
 # Pydantic 生态
 pydantic-core==2.46.4
-pydantic-settings==2.14.2
+pydantic-settings==2.11.0
 annotated-types==0.7.0
 typing-inspection==0.4.2
 
 # FastAPI/Starlette 传递依赖
-anyio==4.14.0
-idna==3.18
+anyio==4.11.0
+idna==3.10
 sniffio==1.3.1
-orjson==3.11.9
+orjson==3.10.18
 
 # Uvicorn 传递依赖
-click==8.4.1
+click==8.2.1
 h11==0.16.0
-httptools==0.8.0
-watchfiles==1.2.0
-websockets==16.0
-uvloop==0.22.1
+httptools==0.6.4
+watchfiles==1.1.1
+websockets==15.0.1
+uvloop==0.21.0
 
 # Jinja2 传递依赖
-MarkupSafe==3.0.3
+MarkupSafe==3.0.2
 
 # Alembic 传递依赖
-Mako==1.3.12
+Mako==1.3.9
 
 # SQLAlchemy 传递依赖
-greenlet==3.5.2
+greenlet==3.2.2
 
 # HTTP 客户端传递依赖
 httpcore==1.0.9
 httpx-sse==0.4.3
 certifi==2026.6.17
-charset-normalizer==3.4.7
-urllib3==2.7.0
+charset-normalizer==3.4.2
+urllib3==2.5.0
 
-# aiohttp 传递依赖（langchain 依赖）
-aiohttp==3.14.1
-aiohappyeyeballs==2.6.2
+# aiohttp 传递依赖
+aiohttp==3.13.5
+aiohappyeyeballs==2.6.1
 aiosignal==1.4.0
-attrs==26.1.0
-frozenlist==1.8.0
-multidict==6.7.1
-propcache==0.5.2
-yarl==1.24.2
+attrs==25.4.0
+frozenlist==1.7.0
+multidict==6.4.4
+propcache==0.3.1
+yarl==1.20.1
 aiofiles==24.1.0
 
 # SSL/TLS 传递依赖
 cffi==2.0.0
-cryptography==46.0.7
-pycparser==3.0
+cryptography==46.0.3
+pycparser==2.22
 
 # OpenAI SDK 传递依赖
-openai==2.43.0
+openai==2.44.0
 distro==1.9.0
-jiter==0.15.0
+jiter==0.10.0
+sniffio==1.3.1
 
 # LangChain 传递依赖
 jsonpatch==1.33
-jsonpointer==3.1.1
+jsonpointer==3.0.0
 dataclasses-json==0.6.7
-marshmallow==3.26.2
+marshmallow==3.26.1
 typing-inspect==0.9.0
 tenacity==9.1.4
 packaging==25.0
-PyYAML==6.0.3
+PyYAML==6.0.2
 langdetect==1.0.9
-ormsgpack==1.12.2
+ormsgpack==1.11.0
 
-# tiktoken（langchain-openai/text-splitters 依赖）
-tiktoken==0.13.0
-regex==2026.5.9
+# tiktoken
+tiktoken==0.9.0
+regex==2025.11.3
 
 # ChromaDB 传递依赖
 mmh3==5.2.1
 overrides==7.7.0
-PyPika==0.51.1
+PyPika==0.51.0
 rank-bm25==0.2.2
-bcrypt==5.0.0
-filelock==3.29.4
-rich==15.0.0
-typer==0.25.1
+bcrypt==4.3.0
+filelock==3.18.0
+rich==14.0.1
+typer==0.16.0
 shellingham==1.5.4
-jsonschema==4.26.0
-jsonschema-specifications==2025.9.1
-referencing==0.37.0
-rpds-py==2026.5.1
+jsonschema==4.25.1
+jsonschema-specifications==2025.4.1
+referencing==0.36.2
+rpds-py==0.26.0
 mdurl==0.1.2
-markdown-it-py==4.2.0
-Pygments==2.20.0
-pybase64==1.4.3
-xxhash==3.7.1
-flatbuffers==25.12.19
-onnxruntime==1.27.0
+markdown-it-py==3.0.0
+Pygments==2.19.2
+pybase64==1.4.1
+xxhash==3.5.0
+flatbuffers==25.2.10
+onnxruntime==1.22.0
 
 # OpenTelemetry（ChromaDB 依赖）
-opentelemetry-api==1.42.1
-opentelemetry-sdk==1.42.1
-opentelemetry-proto==1.42.1
-opentelemetry-semantic-conventions==0.63b1
-opentelemetry-exporter-otlp-proto-common==1.42.1
-opentelemetry-exporter-otlp-proto-grpc==1.42.1
+opentelemetry-api==1.34.1
+opentelemetry-sdk==1.34.1
+opentelemetry-proto==1.34.1
+opentelemetry-semantic-conventions==0.55b1
+opentelemetry-exporter-otlp-proto-common==1.34.1
+opentelemetry-exporter-otlp-proto-grpc==1.34.1
 protobuf==6.33.6
-grpcio==1.81.1
-googleapis-common-protos==1.75.0
+grpcio==1.74.0
+googleapis-common-protos==1.70.0
 
 # ML/深度学习传递依赖
-torch==2.12.1
-numpy==2.5.0
-tokenizers==0.22.2
-transformers==5.12.1
-huggingface-hub==1.20.1
-safetensors==0.8.0
-scikit-learn==1.9.0
-scipy==1.18.0
-joblib==1.5.3
+torch==2.8.0
+numpy==2.0.2
+tokenizers==0.22.1
+transformers==4.57.6
+huggingface-hub==0.34.5
+safetensors==0.5.3
+scikit-learn==1.6.1
+scipy==1.15.2
+joblib==1.4.2
 threadpoolctl==3.6.0
-networkx==3.6.1
-fsspec==2026.6.0
-hf-xet==1.5.1
+networkx==3.4.2
+fsspec==2025.12.0
+hf-xet==1.1.0
 sympy==1.14.0
 mpmath==1.3.0
 
-# Nacos SDK 传递依赖（阿里云 SDK）
+# Nacos SDK 传递依赖
 alibabacloud-credentials==1.0.9
 alibabacloud-credentials-api==1.0.0
+alibabacloud-darabonba-array==0.1.0
+alibabacloud-darabonba-encode-util==0.0.2
+alibabacloud-darabonba-map==0.0.1
+alibabacloud-darabonba-signature-util==0.0.4
 alibabacloud-darabonba-string==0.0.4
+alibabacloud-endpoint-util==0.0.4
 alibabacloud-gateway-pop==0.1.3
+alibabacloud-gateway-spi==0.0.4
 alibabacloud-kms20160120==2.4.0
 alibabacloud-openapi-util==0.2.4
 alibabacloud-tea==0.4.3
 alibabacloud-tea-openapi==0.4.4
 alibabacloud-tea-util==0.3.14
-alibabacloud_darabonba_array==0.1.0
-alibabacloud_darabonba_encode_util==0.0.2
-alibabacloud_darabonba_map==0.0.1
-alibabacloud_darabonba_signature_util==0.0.4
-alibabacloud_endpoint_util==0.0.4
-alibabacloud_gateway_spi==0.0.3
-alibabacloud_tea_xml==0.0.3
+alibabacloud-tea-xml==0.0.3
 darabonba-core==1.0.7
-pycryptodome==3.23.0
+pycryptodome==3.22.0
 
 # Kubernetes（ChromaDB/OpenTelemetry 依赖）
-kubernetes==36.0.2
-oauthlib==3.3.1
+kubernetes==33.1.0
+oauthlib==3.2.2
 requests-oauthlib==2.0.0
 requests-toolbelt==1.0.0
-websocket-client==1.9.0
+websocket-client==1.8.0
 
 # 通用传递依赖
-requests==2.34.2
+requests==2.32.3
 python-dateutil==2.9.0.post0
 six==1.17.0
-typing_extensions==4.15.0
-tqdm==4.68.3
-psutil==7.2.2
-durationpy==0.10
-tzlocal==5.4.3
-uuid_utils==0.16.2
-zstandard==0.25.0
-APScheduler==3.11.2
-importlib_resources==7.1.0
-narwhals==2.22.1
+typing_extensions==4.14.1
+tqdm==4.67.1
+psutil==7.1.2
+durationpy==0.9
+tzlocal==5.3.1
+uuid_utils==0.10.0
+zstandard==0.23.0
+APScheduler==3.11.0
+importlib_resources==6.5.2
+narwhals==1.41.3
 annotated-doc==0.0.4
 mypy_extensions==1.1.0

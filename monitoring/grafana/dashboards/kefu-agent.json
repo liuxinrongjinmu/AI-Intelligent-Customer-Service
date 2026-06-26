@@ -107,9 +107,9 @@
         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
         "datasource": {"type": "prometheus"},
         "targets": [
-          {"expr": "kefu_request_latency_ms{quantile=\"0.5\"}", "legendFormat": "P50"},
-          {"expr": "kefu_request_latency_ms{quantile=\"0.95\"}", "legendFormat": "P95"},
-          {"expr": "kefu_request_latency_ms{quantile=\"0.99\"}", "legendFormat": "P99"}
+          {"expr": "kefu_request_duration_ms{quantile=\"0.5\"}", "legendFormat": "P50"},
+          {"expr": "kefu_request_duration_ms{quantile=\"0.95\"}", "legendFormat": "P95"},
+          {"expr": "kefu_request_duration_ms{quantile=\"0.99\"}", "legendFormat": "P99"}
         ],
         "fieldConfig": {"defaults": {"unit": "ms"}}
       },

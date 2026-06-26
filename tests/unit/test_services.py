@@ -175,6 +175,8 @@ class TestHandoffService:
     def test_create_handoff_ticket_success(self, mock_session_local):
         """创建工单成功"""
         mock_db = MagicMock()
+        # SessionLocal() 作为上下文管理器使用: with SessionLocal() as db:
+        mock_db.__enter__.return_value = mock_db
         mock_session_local.return_value = mock_db
         mock_ticket = MagicMock()
         mock_ticket.id = 1
@@ -197,6 +199,7 @@ class TestHandoffService:
     def test_create_handoff_ticket_db_error(self, mock_session_local):
         """数据库异常时不抛出"""
         mock_db = MagicMock()
+        mock_db.__enter__.return_value = mock_db
         mock_session_local.return_value = mock_db
         mock_db.commit.side_effect = Exception("DB error")
 
@@ -213,6 +216,7 @@ class TestHandoffService:
     def test_resolve_handoff_ticket(self, mock_session_local):
         """解决工单"""
         mock_db = MagicMock()
+        mock_db.__enter__.return_value = mock_db
         mock_session_local.return_value = mock_db
         mock_ticket = MagicMock()
         mock_ticket.id = 1

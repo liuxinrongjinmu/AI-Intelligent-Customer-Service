@@ -174,9 +174,12 @@ def _cleanup_old_backups():
     _ensure_backup_dir()
 
     try:
-        # 匹配 app_*.dump、chroma_* 目录
+        # 匹配 app_*.dump、chroma_* 目录，以及旧的 app_*.db / checkpoints_*.db 备份
+        date_pattern = re.compile(r"(?:app|chroma|checkpoints)_(\d{8})_\d{6}")
         backups = sorted(
             list(BACKUP_DIR.glob("app_*.dump"))
+            + list(BACKUP_DIR.glob("app_*.db"))
+            + list(BACKUP_DIR.glob("checkpoints_*.db"))
             + [p for p in BACKUP_DIR.glob("chroma_*") if p.is_dir()],
             key=lambda p: _safe_mtime(p),
             reverse=True,

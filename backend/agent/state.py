@@ -4,7 +4,12 @@ Agent 图状态定义
 意图分类体系（两层结构）：
   大类 → 子类 → 工具调用链
 """
-from typing import TypedDict, Annotated, Sequence, NotRequired
+from typing import TypedDict, Annotated, Sequence
+
+try:
+    from typing import NotRequired  # Python 3.11+
+except ImportError:
+    from typing_extensions import NotRequired  # Python 3.9-3.10
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 

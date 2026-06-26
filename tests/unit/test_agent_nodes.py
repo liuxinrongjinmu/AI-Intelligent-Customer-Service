@@ -42,7 +42,7 @@ class TestSafeLlmInvoke:
         mock_response.content = "重试成功"
         mock_llm.ainvoke.side_effect = [Exception("network error"), mock_response]
 
-        with patch("backend.agent.nodes.asyncio.sleep", new_callable=AsyncMock):
+        with patch("backend.agent.llm_utils.asyncio.sleep", new_callable=AsyncMock):
             result = await _safe_llm_invoke(mock_llm, [], node_name="test")
         assert result == "重试成功"
         assert mock_llm.ainvoke.call_count == 2
@@ -53,7 +53,7 @@ class TestSafeLlmInvoke:
         mock_llm = AsyncMock()
         mock_llm.ainvoke.side_effect = Exception("persistent error")
 
-        with patch("backend.agent.nodes.asyncio.sleep", new_callable=AsyncMock):
+        with patch("backend.agent.llm_utils.asyncio.sleep", new_callable=AsyncMock):
             result = await _safe_llm_invoke(
                 mock_llm, [], fallback_text="兜底回复", node_name="test"
             )
@@ -66,7 +66,7 @@ class TestSafeLlmInvoke:
         mock_llm = AsyncMock()
         mock_llm.ainvoke.side_effect = Exception("error")
 
-        with patch("backend.agent.nodes.asyncio.sleep", new_callable=AsyncMock):
+        with patch("backend.agent.llm_utils.asyncio.sleep", new_callable=AsyncMock):
             result = await _safe_llm_invoke(mock_llm, [], node_name="test")
         assert "抱歉" in result or "不可用" in result
 
@@ -76,7 +76,7 @@ class TestSafeLlmInvoke:
         mock_llm = AsyncMock()
         mock_llm.ainvoke.side_effect = [Exception("error"), Exception("error"), Exception("error")]
 
-        with patch("backend.agent.nodes.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with patch("backend.agent.llm_utils.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             await _safe_llm_invoke(mock_llm, [], node_name="test")
             # 验证 sleep 被调用了 2 次（第1次和第2次失败后）
             assert mock_sleep.call_count == 2

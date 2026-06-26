@@ -114,8 +114,8 @@ def main():
     print("\n>>> 部署前数据库备份...")
     backup_pg_cmd = (
         f"cd {deploy_path} && "
-        # 通过 docker exec 执行 pg_dump，导出到容器挂载的 data/ 目录
-        f"docker exec kefu-postgres pg_dump -U ${{POSTGRES_USER:-kefu}} ${{POSTGRES_DB:-kefu_agent}} "
+        # 通过 docker exec 执行 pg_dump（用户名和数据库名与 docker-compose.yml 默认值一致）
+        f"docker exec kefu-postgres pg_dump -U kefu kefu_agent "
         f"> data/pg_backup_$(date +%Y%m%d_%H%M%S).sql 2>/dev/null "
         f"&& echo 'PostgreSQL 备份成功' && ls -lh data/pg_backup_*.sql | tail -5 "
         f"|| echo 'PostgreSQL 备份跳过（容器未运行或未配置）'"

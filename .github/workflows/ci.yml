@@ -32,7 +32,9 @@ jobs:
         run: ruff check backend/ tests/
 
       - name: 类型检查（mypy）
-        run: mypy backend/ --ignore-missing-imports --no-strict-optional || true
+        # 类型检查作为信息参考，暂不阻断 CI（可在修复所有类型错误后移除 continue-on-error）
+        continue-on-error: true
+        run: mypy backend/ --ignore-missing-imports --no-strict-optional
 
       - name: 单元测试
         env:
@@ -66,14 +68,26 @@ jobs:
 
       - name: 构建并推送 Docker 镜像
         run: |
-          docker build -t kefu-agent:${{ github.sha }} .
-          echo "镜像构建完成: kefu-agent:${{ github.sha }}"
-          # TODO: 配置镜像仓库后取消注释
-          # docker login -u ${{ secrets.REGISTRY_USER }} -p ${{ secrets.REGISTRY_PASS }}
-          # docker push your-registry/kefu-agent:${{ github.sha }}
+          IMAGE_TAG="${GITHUB_SHA::8}"
+          docker build -t kefu-agent:${IMAGE_TAG} -t kefu-agent:latest .
+          echo "镜像构建完成: kefu-agent:${IMAGE_TAG}"
+          # 推送镜像（需在 GitHub Secrets 中配置 REGISTRY_URL / REGISTRY_USER / REGISTRY_PASS）
+          if [ -n "${{ secrets.REGISTRY_URL }}" ]; then
+            echo "${{ secrets.REGISTRY_PASS }}" | docker login "${{ secrets.REGISTRY_URL }}" -u "${{ secrets.REGISTRY_USER }}" --password-stdin
+            docker tag kefu-agent:${IMAGE_TAG} ${{ secrets.REGISTRY_URL }}/kefu-agent:${IMAGE_TAG}
+            docker tag kefu-agent:latest ${{ secrets.REGISTRY_URL }}/kefu-agent:latest
+            docker push ${{ secrets.REGISTRY_URL }}/kefu-agent:${IMAGE_TAG}
+            docker push ${{ secrets.REGISTRY_URL }}/kefu-agent:latest
+            echo "镜像已推送至 ${{ secrets.REGISTRY_URL }}"
+          else
+            echo "未配置镜像仓库（REGISTRY_URL secret），跳过推送"
+          fi
 
       - name: 部署到生产环境
         run: |
-          echo "自动部署待配置（需 SSH 密钥和目标服务器）"
-          # TODO: 配置后取消注释
-          # python deploy.py --server ${{ secrets.DEPLOY_SERVER }}
+          # 自动部署（需配置 DEPLOY_SERVER / DEPLOY_SSH_KEY secrets）
+          if [ -n "${{ secrets.DEPLOY_SERVER }}" ]; then
+            python deploy.py --server ${{ secrets.DEPLOY_SERVER }}
+          else
+            echo "未配置部署目标（DEPLOY_SERVER secret），跳过自动部署"
+          fi

@@ -26,7 +26,6 @@
     </div>
 
     <div class="chat-input-area">
-        <div class="status-bar" id="statusText2"></div>
         <div class="typing-indicator" id="typingIndicator">
             <div class="typing-avatar">AI</div>
             <div class="typing-dots">
@@ -42,6 +41,6 @@
     </div>
 </div>
 
-<script>window.TENANT_ID = {{ tenant_id | tojson }};</script>
+<meta name="tenant-id" content="{{ tenant_id }}">
 <script src="/static/js/chat.js"></script>
 {% endblock %}

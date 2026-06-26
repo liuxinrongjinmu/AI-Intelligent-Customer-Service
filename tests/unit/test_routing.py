@@ -1,45 +1,15 @@
 """
 意图路由单元测试：route_by_intent / INTENT_HIERARCHY 完整性
-
-运行方式：python -m pytest tests/test_routing.py -v
 """
 import pytest
-from backend.agent.state import AgentState, INTENT_HIERARCHY
+from backend.agent.state import INTENT_HIERARCHY
 from backend.agent.nodes import route_by_intent
+from tests.unit.conftest import make_test_state
 
 
-def _make_state(intent: str, intent_sub_type: str = "") -> AgentState:
-    """
-    构造最小 AgentState 用于路由测试
-
-    :param intent: 意图大类
-    :param intent_sub_type: 意图子类
-    :return: AgentState
-    """
-    return {
-        "tenant_id": "test_001",
-        "tenant_name": "测试租户",
-        "user_id": "user_001",
-        "user_name": "测试用户",
-        "channel": "web",
-        "thread_id": "test_thread",
-        "messages": [],
-        "intent": intent,
-        "intent_sub_type": intent_sub_type,
-        "intent_priority": 3,
-        "intent_entities": {},
-        "coref_resolved": "",
-        "search_query": "",
-        "suggested_kb_types": [],
-        "retrieved_docs": [],
-        "final_answer": "",
-        "user_profile": {},
-        "recent_orders": [],
-        "current_order_id": "",
-        "current_product_id": "",
-        "ai_failed_count": 0,
-        "pending_confirmation": {},
-    }
+def _make_state(intent: str, intent_sub_type: str = ""):
+    """构造路由测试用最小状态（使用共享工具）"""
+    return make_test_state(intent=intent, intent_sub_type=intent_sub_type, messages=[])
 
 
 class TestRouteByIntent:

@@ -13,6 +13,8 @@ import pytest
 from unittest.mock import MagicMock
 from fastapi import HTTPException
 
+from typing import Optional, Union, Dict
+
 from backend.middleware import gateway_auth
 from backend.middleware.gateway_auth import (
     _is_ip_in_whitelist,
@@ -27,7 +29,7 @@ from backend.middleware.gateway_auth import (
 # ---------------------------------------------------------------------------
 
 def _make_mock_request(
-    headers: dict | None = None,
+    headers: Optional[Dict] = None,
     client_host: str = "127.0.0.1",
     client_port: int = 54321,
 ) -> MagicMock:

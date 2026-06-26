@@ -1,12 +1,14 @@
 """
-单元测试公共 fixtures
+单元测试公共 fixtures 和工具函数
 
 提供：
 - 内存 SQLite 数据库（隔离测试，不污染生产数据）
 - FastAPI TestClient（已覆盖认证和数据库依赖）
+- make_test_state() 共享测试状态构造器
 - Mock 外部服务（LLM、ChromaDB、Nacos）
 """
 import pytest
+from unittest.mock import MagicMock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
@@ -15,6 +17,36 @@ from fastapi.testclient import TestClient
 
 from backend.database import Base, get_db
 from backend.utils.auth import verify_chat_api_key, verify_sync_api_key, verify_admin_key
+
+
+# ─── 共享测试工具 ───────────────────────────────────────────────────────────
+
+def make_test_state(**overrides) -> dict:
+    """
+    构造测试用 AgentState 字典（共享工具，避免各测试文件重复定义）
+
+    用法：
+        state = make_test_state(intent="order_query")
+        state = make_test_state(messages=[...], tenant_id="custom")
+
+    :param overrides: 覆盖默认字段
+    :return: AgentState 兼容字典
+    """
+    base = {
+        "messages": [MagicMock(content="你好")],
+        "tenant_id": "test_tenant",
+        "tenant_name": "测试商家",
+        "user_id": "user_001",
+        "user_name": "测试用户",
+        "channel": "app",
+        "thread_id": "thread_001",
+        "intent": "",
+        "intent_sub_type": "",
+        "intent_entities": {},
+        "ai_failed_count": 0,
+    }
+    base.update(overrides)
+    return base
 
 # 确保所有模型在 create_all 之前被导入
 from backend.models.tenant import Tenant  # noqa: F401

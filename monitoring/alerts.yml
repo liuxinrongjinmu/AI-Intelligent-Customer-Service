@@ -78,7 +78,7 @@ groups:
         expr: |
           sum(rate(kefu_requests_total{path=~".*handoff.*"}[10m]))
           /
-          sum(rate(kefu_chat_messages_total[10m]))
+          clamp_min(sum(rate(kefu_chat_messages_total[10m])), 0.001)
           > 0.3
         for: 10m
         labels:

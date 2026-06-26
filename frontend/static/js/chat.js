@@ -6,7 +6,7 @@
  * - session_id 不存在 → 自动创建新会话
  */
 (function() {
-    const TID = window.TENANT_ID;
+    const TID = document.querySelector('meta[name="tenant-id"]')?.content || '';
     let sessionId = localStorage.getItem(`session_${TID}`) || '';
 
     // 优先从 URL 参数获取 user_id（由聚宝赞端传入），否则生成临时 ID
@@ -70,7 +70,8 @@
     }
 
     function generateSessionId() {
-        return 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10);
+        // 使用 crypto.randomUUID() 生成密码学安全的会话 ID
+        return 'sess_' + crypto.randomUUID();
     }
 
     /**
@@ -140,12 +141,14 @@
      */
     async function streamAssistantResponse(message, aiBubble, messageDiv) {
         let streamTimeoutId = null;
+        let timeoutId = null;
+        let abortController = null;
         let fullText = '';
         let succeeded = false;
 
         try {
-            let abortController = new AbortController();
-            let timeoutId = setTimeout(function() { abortController.abort(); }, 120000);
+            abortController = new AbortController();
+            timeoutId = setTimeout(function() { abortController.abort(); }, 120000);
 
             const resp = await fetch(`/api/v1/chat/${TID}/stream`, {
                 method: 'POST',

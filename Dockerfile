@@ -90,5 +90,6 @@ ENTRYPOINT ["/app/docker-entrypoint.sh"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD curl -fs -o /dev/null http://localhost:8080/api/v1/system/health
 
-# 使用 shell 形式 CMD 以读取 WORKERS 环境变量（生产环境可根据 CPU 核数调整）
-CMD uvicorn backend.main:app --host 0.0.0.0 --port 8080 --workers ${WORKERS:-1}
+# 使用 exec 确保 uvicorn 直接接收 SIGTERM 信号（优雅关闭）
+# sh -c 展开环境变量后 exec 替换为 uvicorn 进程，信号不经过 shell 中转
+CMD ["sh", "-c", "exec uvicorn backend.main:app --host ${HOST:-0.0.0.0} --port ${PORT:-8080} --workers ${WORKERS:-1}"]
