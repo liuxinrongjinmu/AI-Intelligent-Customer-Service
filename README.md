@@ -341,12 +341,8 @@ curl -X POST http://localhost:8081/api/v1/chat/demo_001/stream \
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/v1/system/health` | 健康检查 |
-| GET | `/api/v1/system/metrics` | 运行指标 |
+| GET | `/api/v1/system/metrics` | Prometheus 运行指标 |
 | GET | `/api/v1/system/stats` | 对话统计 |
-| GET | `/api/v1/system/stats/tickets` | 工单统计 |
-| GET | `/api/v1/system/stats/kb-health` | 知识库健康检查 |
-| POST | `/api/v1/system/feedback` | 提交满意度评价 |
-| GET | `/api/v1/system/feedback` | 满意度统计 |
 
 ### 租户管理
 
@@ -381,9 +377,8 @@ kefu_agent/
 │   ├── api/                    # API 路由
 │   │   ├── chat.py             # 消费者聊天（SSE 流式）
 │   │   ├── knowledge.py        # 知识库同步
-│   │   ├── stats.py            # 监控统计
-│   │   ├── tenant.py           # 租户管理
-│   │   └── handoff.py          # 转人工工单管理
+│   │   ├── stats.py            # 监控统计（健康检查/指标/对话统计）
+│   │   └── tenant.py           # 租户管理
 │   ├── knowledge/              # 知识处理
 │   │   ├── faq_service.py      # FAQ 服务
 │   │   ├── loader.py           # 文档加载器

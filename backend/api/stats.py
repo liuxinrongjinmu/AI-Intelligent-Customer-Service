@@ -5,11 +5,10 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, text as sa_text
+from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Session
 from backend.database import get_db
-from backend.utils.metrics import get_metrics_text, get_metrics_json
-from backend.utils.response_cache import cache_stats
+from backend.utils.metrics import get_metrics_text
 from backend.models.conversation import Conversation, Message
 from backend.models.handoff import HandoffTicket
 from backend.utils.auth import verify_chat_api_key
@@ -54,8 +53,6 @@ async def health_check():
     try:
         from backend.retrieval.vector_store import get_chroma_client
         client = get_chroma_client()
-        # PersistentClient 不支持 heartbeat()（chromadb 1.5+），
-        # 用 list_collections 验证客户端可用性
         client.list_collections()
         checks["chromadb"] = {"status": "ok"}
     except Exception as e:
@@ -88,18 +85,6 @@ def get_metrics(_auth: str = Depends(verify_chat_api_key)):
     """获取 Prometheus 格式的系统运行指标"""
     from fastapi.responses import PlainTextResponse
     return PlainTextResponse(content=get_metrics_text(), media_type="text/plain; charset=utf-8")
-
-
-@router.get("/metrics/json")
-def get_metrics_json_endpoint(_auth: str = Depends(verify_chat_api_key)):
-    """获取 JSON 格式的系统运行指标"""
-    return get_metrics_json()
-
-
-@router.get("/cache")
-def get_cache_info(_auth: str = Depends(verify_chat_api_key)):
-    """获取缓存统计"""
-    return cache_stats()
 
 
 @router.get("/stats")
@@ -151,61 +136,3 @@ def get_stats(
         "pending_tickets": pending_tickets,
         "avg_messages_per_conversation": round(total_messages / max(total_conversations, 1), 1),
     }
-
-
-@router.get("/stats/tickets")
-def get_ticket_stats(
-    tenant_id: str = Query(..., description="租户ID"),
-    _auth: str = Depends(verify_chat_api_key),
-    db: Session = Depends(get_db),
-):
-    """获取工单统计"""
-    tickets = (
-        db.query(
-            HandoffTicket.reason,
-            func.count(HandoffTicket.id).label("count")
-        )
-        .filter(HandoffTicket.tenant_id == tenant_id)
-        .group_by(HandoffTicket.reason)
-        .all()
-    )
-    return {
-        "tenant_id": tenant_id,
-        "tickets_by_reason": {(r.reason or "未分类"): r.count for r in tickets},
-    }
-
-
-@router.get("/stats/kb-health")
-def kb_health_check(
-    tenant_id: str = Query(..., description="租户ID"),
-    _auth: str = Depends(verify_chat_api_key),
-):
-    """知识库健康检查"""
-    from backend.retrieval.vector_store import get_collection
-    from backend.config import CHROMA_PATH
-
-    health = {"tenant_id": tenant_id, "collections": {}}
-
-    kb_types = ["faq", "product", "rule", "public"]
-    for kb_type in kb_types:
-        try:
-            collection = get_collection(tenant_id, kb_type)
-            count = collection.count()
-            health["collections"][kb_type] = {
-                "count": count,
-                "status": "healthy" if count > 0 else "empty",
-            }
-        except Exception as e:
-            health["collections"][kb_type] = {
-                "count": 0,
-                "status": "error",
-                "error": str(e),
-            }
-
-    total = sum(c.get("count", 0) for c in health["collections"].values())
-    health["total_documents"] = total
-    health["overall_status"] = "healthy" if total > 0 else "warning"
-
-    return health
-
-

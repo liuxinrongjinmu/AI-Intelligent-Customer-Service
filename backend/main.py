@@ -26,7 +26,6 @@ from backend.api.tenant import router as tenant_router
 from backend.api.knowledge import router as knowledge_router
 from backend.api.chat import router as chat_router
 from backend.api.stats import router as stats_router
-from backend.api.handoff import router as handoff_router
 from backend.utils.sensitive_filter import install_sensitive_filter
 from backend.utils.request_id import request_id_var, get_request_id
 from backend.utils.metrics import mark_request_start, record_request, increment_active, decrement_active
@@ -194,7 +193,6 @@ app.include_router(tenant_router)
 app.include_router(knowledge_router)
 app.include_router(chat_router)
 app.include_router(stats_router)
-app.include_router(handoff_router)
 
 
 @app.exception_handler(RequestValidationError)
