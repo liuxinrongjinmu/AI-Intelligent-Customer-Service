@@ -55,7 +55,7 @@ def _validate_tenant(tenant_id: str, db: Session):
 # ============================================================
 
 @router.post("/sync/{tenant_id}/{kb_type}")
-def sync_knowledge(
+async def sync_knowledge(
     tenant_id: str,
     kb_type: str,
     body: KnowledgeSyncRequest,
@@ -125,7 +125,7 @@ def sync_knowledge(
 # ============================================================
 
 @router.post("/sync/{tenant_id}/{kb_type}/batch")
-def sync_knowledge_batch(
+async def sync_knowledge_batch(
     tenant_id: str,
     kb_type: str,
     body: KnowledgeBatchRequest,
@@ -181,7 +181,7 @@ def sync_knowledge_batch(
 # ============================================================
 
 @router.delete("/sync/{tenant_id}/{kb_type}")
-def clear_knowledge_base(
+async def clear_knowledge_base(
     tenant_id: str,
     kb_type: str,
     _api_key: str = Depends(verify_sync_api_key),
@@ -211,7 +211,7 @@ def clear_knowledge_base(
 # ============================================================
 
 @router.get("/sync/{tenant_id}/history")
-def get_sync_history(
+async def get_sync_history(
     tenant_id: str,
     kb_type: str = None,
     limit: int = Query(20, le=200),
@@ -233,7 +233,7 @@ def get_sync_history(
 
 
 @router.post("/sync/{tenant_id}/{kb_type}/rollback")
-def rollback_knowledge(
+async def rollback_knowledge(
     tenant_id: str,
     kb_type: str,
     _api_key: str = Depends(verify_sync_api_key),
