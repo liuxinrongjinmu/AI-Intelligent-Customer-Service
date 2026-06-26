@@ -6,12 +6,7 @@
  * - session_id 不存在 → 自动创建新会话
  */
 (function() {
-    // 调试：在页面显示 JS 加载状态
-    var debugEl = document.getElementById('statusText');
-    if (debugEl) { debugEl.textContent = 'JS已加载'; debugEl.style.color = 'green'; }
-
     const TID = document.querySelector('meta[name="tenant-id"]')?.content || '';
-    if (!TID && debugEl) { debugEl.textContent = '错误: 未找到租户ID'; debugEl.style.color = 'red'; return; }
 
     // 安全访问 localStorage（隐私模式/无痕浏览可能不可用）
     let sessionId = '';
@@ -20,7 +15,6 @@
         sessionId = localStorage.getItem('session_' + TID) || '';
     } catch (e) {
         storageAvailable = false;
-        console.warn('localStorage 不可用，会话仅在内存中保持');
     }
 
     // 优先从 URL 参数获取 user_id（由聚宝赞端传入），否则生成临时 ID
@@ -28,8 +22,7 @@
         || 'u_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     let isStreaming = false;
     let currentAIBubble = null;
-    let lastUserMessage = '';          // 上一条用户消息（用于重试）
-    let hasReceivedAIReply = false;    // 是否已收到AI回复（控制快捷问题隐藏）
+    let hasReceivedAIReply = false;
 
     const chatArea = document.getElementById('chatArea');
     const messageInput = document.getElementById('messageInput');
@@ -39,7 +32,6 @@
     const statusText = document.getElementById('statusText');
     const quickQuestions = document.getElementById('quickQuestions');
 
-    // 状态文案映射表
     const STATUS_MAP = {
         'classify_intent': '正在分析问题...',
         'retrieve_knowledge': '正在查找知识库...',
@@ -56,11 +48,11 @@
     }
 
     function createMessageBubble(role, content) {
-        const div = document.createElement('div');
-        div.className = `message ${role}`;
+        var div = document.createElement('div');
+        div.className = 'message ' + role;
         div.innerHTML = role === 'user'
-            ? `<div class="message-bubble user-bubble">${escapeHtml(content)}</div>`
-            : `<div class="message-avatar">AI</div><div class="message-bubble ai-bubble">${escapeHtml(content)}</div>`;
+            ? '<div class="message-bubble user-bubble">' + escapeHtml(content) + '</div>'
+            : '<div class="message-avatar">AI</div><div class="message-bubble ai-bubble">' + escapeHtml(content) + '</div>';
         chatArea.appendChild(div);
         scrollToBottom();
         return div;
@@ -78,18 +70,12 @@
     }
 
     function escapeHtml(text) {
-        const div = document.createElement('div');
+        var div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML.replace(/\n/g, '<br>');
     }
 
-    function saveSessionId(id) {
-        if (!storageAvailable) return;
-        try { localStorage.setItem('session_' + TID, id); } catch (e) {}
-    }
-
     function generateSessionId() {
-        // 优先 crypto.randomUUID()，回退到时间戳+随机数
         try {
             return 'sess_' + crypto.randomUUID();
         } catch (e) {
@@ -97,32 +83,24 @@
         }
     }
 
-    /**
-     * 显示快捷问题引导区域
-     */
+    function saveSessionId(id) {
+        if (!storageAvailable) return;
+        try { localStorage.setItem('session_' + TID, id); } catch (e) {}
+    }
+
     function showQuickQuestions() {
         if (quickQuestions) quickQuestions.classList.add('visible');
     }
 
-    /**
-     * 隐藏快捷问题引导区域
-     */
     function hideQuickQuestions() {
         if (quickQuestions) quickQuestions.classList.remove('visible');
     }
 
-    /**
-     * 在AI消息旁挂载重试按钮
-     * :param messageDiv: AI消息包裹元素（.message.assistant）
-     * :param message: 需要重试发送的用户消息文本
-     * :param aiBubble: AI气泡DOM元素
-     */
     function attachRetryButton(messageDiv, message, aiBubble) {
         if (!messageDiv) return;
-        // 先移除已有重试按钮，避免重复
         messageDiv.querySelectorAll('.message-retry').forEach(function(b) { b.remove(); });
 
-        const retryBtn = document.createElement('button');
+        var retryBtn = document.createElement('button');
         retryBtn.className = 'message-retry';
         retryBtn.type = 'button';
         retryBtn.textContent = '重试';
@@ -134,14 +112,11 @@
             retryBtn.textContent = '重试中...';
             if (aiBubble) aiBubble.innerHTML = '';
             showTyping();
-            const ok = await streamAssistantResponse(message, aiBubble, messageDiv);
+            var ok = await streamAssistantResponse(message, aiBubble, messageDiv);
             if (ok) {
-                // 成功后移除重试按钮
                 messageDiv.querySelectorAll('.message-retry').forEach(function(b) { b.remove(); });
             } else {
-                // 失败时 streamAssistantResponse 已挂载新的重试按钮；
-                // 兜底：重置可能残留的 loading 状态按钮
-                const loadingBtn = messageDiv.querySelector('.message-retry.loading');
+                var loadingBtn = messageDiv.querySelector('.message-retry.loading');
                 if (loadingBtn) {
                     loadingBtn.classList.remove('loading');
                     loadingBtn.textContent = '重试';
@@ -155,25 +130,18 @@
         messageDiv.appendChild(retryBtn);
     }
 
-    /**
-     * 流式获取AI回复并更新气泡
-     * :param message: 用户消息文本
-     * :param aiBubble: AI气泡DOM元素
-     * :param messageDiv: 包裹AI消息的DOM元素（用于挂载重试按钮）
-     * :return: Promise<boolean> 是否成功完成（收到done事件视为成功）
-     */
     async function streamAssistantResponse(message, aiBubble, messageDiv) {
-        let streamTimeoutId = null;
-        let timeoutId = null;
-        let abortController = null;
-        let fullText = '';
-        let succeeded = false;
+        var streamTimeoutId = null;
+        var timeoutId = null;
+        var abortController = null;
+        var fullText = '';
+        var succeeded = false;
 
         try {
             abortController = new AbortController();
             timeoutId = setTimeout(function() { abortController.abort(); }, 120000);
 
-            const resp = await fetch(`/api/v1/chat/${TID}/stream`, {
+            var resp = await fetch('/api/v1/chat/' + TID + '/stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message: message, session_id: sessionId, user_id: USER_ID }),
@@ -181,16 +149,16 @@
             });
 
             if (!resp.ok) {
-                const errText = await resp.text();
+                var errText = await resp.text();
                 throw new Error(errText);
             }
 
             clearTimeout(timeoutId);
 
-            const reader = resp.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-            let lastDataTime = Date.now();
+            var reader = resp.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
+            var lastDataTime = Date.now();
             streamTimeoutId = setInterval(function() {
                 if (Date.now() - lastDataTime > 60000) {
                     if (aiBubble && !fullText) {
@@ -201,21 +169,20 @@
             }, 5000);
 
             while (true) {
-                const { done, value } = await reader.read();
-
-                if (done) break;
+                var chunk = await reader.read();
+                if (chunk.done) break;
 
                 lastDataTime = Date.now();
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
+                buffer += decoder.decode(chunk.value, { stream: true });
+                var lines = buffer.split('\n');
                 buffer = lines.pop() || '';
 
-                for (const line of lines) {
-                    const trimmed = line.trim();
+                for (var i = 0; i < lines.length; i++) {
+                    var trimmed = lines[i].trim();
                     if (!trimmed.startsWith('data: ')) continue;
 
                     try {
-                        const event = JSON.parse(trimmed.slice(6));
+                        var event = JSON.parse(trimmed.slice(6));
 
                         if (event.type === 'text') {
                             hideTyping();
@@ -223,7 +190,6 @@
                             if (aiBubble) {
                                 aiBubble.innerHTML = escapeHtml(fullText).replace(/\n/g, '<br>');
                             }
-                            // 收到第一条AI回复后隐藏快捷问题
                             if (!hasReceivedAIReply) {
                                 hasReceivedAIReply = true;
                                 hideQuickQuestions();
@@ -243,27 +209,24 @@
                                 sessionId = event.session_id;
                                 saveSessionId(sessionId);
                             }
-                            // 成功完成后移除重试按钮
                             if (messageDiv) {
                                 messageDiv.querySelectorAll('.message-retry').forEach(function(b) { b.remove(); });
                             }
                         } else if (event.type === 'error') {
                             if (aiBubble) {
-                                aiBubble.innerHTML = `<span style="color:#FF7675;">${escapeHtml(event.message)}</span>`;
+                                aiBubble.innerHTML = '<span style="color:#FF7675;">' + escapeHtml(event.message) + '</span>';
                             }
-                            // AI回复失败时显示重试按钮
                             attachRetryButton(messageDiv, message, aiBubble);
                         }
                     } catch (e) {
-                        console.warn('SSE解析异常:', e, trimmed.slice(0, 100));
+                        // SSE 解析异常，跳过该行继续
                     }
                 }
             }
         } catch (e) {
-            console.error('发送消息失败:', e);
             clearTimeout(timeoutId);
             if (aiBubble) {
-                const errMsg = e.name === 'AbortError' ? '请求超时，请稍后重试' : '服务暂时不可用，请稍后重试';
+                var errMsg = e.name === 'AbortError' ? '请求超时，请稍后重试' : '服务暂时不可用，请稍后重试';
                 aiBubble.innerHTML = '<span style="color:#FF7675;">' + errMsg + '</span>';
             }
             attachRetryButton(messageDiv, message, aiBubble);
@@ -276,44 +239,37 @@
 
     async function loadHistory() {
         if (!sessionId) {
-            // 新会话：展示快捷问题引导
             showQuickQuestions();
             return;
         }
         try {
-            const resp = await fetch(`/api/v1/chat/${TID}/history/${sessionId}?user_id=${encodeURIComponent(USER_ID)}`, {
+            var resp = await fetch('/api/v1/chat/' + TID + '/history/' + sessionId + '?user_id=' + encodeURIComponent(USER_ID), {
                 headers: {}
             });
             if (!resp.ok) {
                 showQuickQuestions();
                 return;
             }
-            const data = await resp.json();
+            var data = await resp.json();
             chatArea.innerHTML = '';
             if (data.messages && data.messages.length) {
-                for (const msg of data.messages) {
-                    createMessageBubble(msg.role, msg.content);
+                for (var i = 0; i < data.messages.length; i++) {
+                    createMessageBubble(data.messages[i].role, data.messages[i].content);
                 }
                 hasReceivedAIReply = true;
                 scrollToBottom();
             } else {
-                // 空会话：展示快捷问题引导
                 showQuickQuestions();
             }
         } catch (e) {
-            console.error('加载历史失败:', e);
             showQuickQuestions();
         }
     }
 
     async function sendMessage() {
-        // 调试：点击发送时显示状态
-        if (statusText) { statusText.textContent = '正在发送...'; statusText.style.color = '#333'; }
-        const message = messageInput.value.trim();
-        if (!message) { if (statusText) { statusText.textContent = '输入为空'; statusText.style.color = 'red'; } return; }
-        if (isStreaming) { if (statusText) { statusText.textContent = '正在回复中...'; statusText.style.color = 'orange'; } return; }
+        var message = messageInput.value.trim();
+        if (!message || isStreaming) return;
 
-        // 确保 session_id 存在（首次对话自动生成）
         if (!sessionId) {
             sessionId = generateSessionId();
             saveSessionId(sessionId);
@@ -325,14 +281,14 @@
         createMessageBubble('user', message);
         showTyping();
 
-        const currentAIBubbleDiv = document.createElement('div');
-        currentAIBubbleDiv.className = 'message assistant';
-        currentAIBubbleDiv.innerHTML = '<div class="message-avatar">AI</div><div class="message-bubble ai-bubble"></div>';
-        chatArea.appendChild(currentAIBubbleDiv);
-        currentAIBubble = currentAIBubbleDiv.querySelector('.ai-bubble');
+        var aiDiv = document.createElement('div');
+        aiDiv.className = 'message assistant';
+        aiDiv.innerHTML = '<div class="message-avatar">AI</div><div class="message-bubble ai-bubble"></div>';
+        chatArea.appendChild(aiDiv);
+        currentAIBubble = aiDiv.querySelector('.ai-bubble');
 
         try {
-            await streamAssistantResponse(message, currentAIBubble, currentAIBubbleDiv);
+            await streamAssistantResponse(message, currentAIBubble, aiDiv);
         } finally {
             isStreaming = false;
             sendBtn.disabled = false;
@@ -351,23 +307,20 @@
     });
 
     newSessionBtn.addEventListener('click', function() {
-        // 生成新的 session_id 即为新会话
         sessionId = generateSessionId();
         saveSessionId(sessionId);
         chatArea.innerHTML = '';
         if (statusText) statusText.textContent = '';
         hasReceivedAIReply = false;
-        // 新会话展示快捷问题引导
         showQuickQuestions();
         messageInput.focus();
     });
 
-    // 快捷问题按钮点击：自动填入输入框并发送
     if (quickQuestions) {
         quickQuestions.addEventListener('click', function(e) {
-            const btn = e.target.closest('.quick-question-btn');
+            var btn = e.target.closest('.quick-question-btn');
             if (!btn) return;
-            const q = btn.getAttribute('data-q');
+            var q = btn.getAttribute('data-q');
             if (!q) return;
             messageInput.value = q;
             sendMessage();
