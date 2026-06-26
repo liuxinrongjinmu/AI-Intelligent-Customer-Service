@@ -82,8 +82,14 @@ async def human_service_node(state: AgentState) -> dict:
 
     record_handoff()
 
+    # 保留 ai_failed_count 用于后台审计：AI 连续失败转人工 vs 用户主动转人工
+    ai_failed_count = state.get("ai_failed_count", 0)
+
     if intent_sub_type == "ai_limitation":
-        return {"final_answer": "抱歉未能完全理解您的问题，正在为您转接人工客服，请稍候。人工客服可以更准确地解答您的问题。"}
+        return {
+            "final_answer": "抱歉未能完全理解您的问题，正在为您转接人工客服，请稍候。人工客服可以更准确地解答您的问题。",
+            "ai_failed_count": ai_failed_count,
+        }
 
     user_context = current_message
     if history != "（无历史对话）":

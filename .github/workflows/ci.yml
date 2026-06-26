@@ -31,6 +31,9 @@ jobs:
       - name: 代码风格检查（ruff）
         run: ruff check backend/ tests/
 
+      - name: 前端 JS 语法检查
+        run: node -c frontend/static/js/chat.js && echo "JS 语法检查通过"
+
       - name: 类型检查（mypy）
         # 类型检查作为信息参考，暂不阻断 CI（可在修复所有类型错误后移除 continue-on-error）
         continue-on-error: true

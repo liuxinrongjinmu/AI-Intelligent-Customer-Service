@@ -49,7 +49,8 @@ async def generate_answer_node(state: AgentState) -> dict:
     answer = clean_answer(raw)
     answer = sanitize_output(answer)
 
-    if docs:
+    # 只要 LLM 生成了有意义回复就缓存（不限于有检索结果时）
+    if answer and len(answer) > 10:
         set_cached_answer(current_message, tenant_id, answer)
 
     logger.info(

@@ -53,13 +53,8 @@ async def product_query_node(state: AgentState) -> dict:
         try:
             docs = await asyncio.to_thread(
                 hybrid_search, query=search_name, tenant_id=tenant_id,
-                kb_types=["product", "faq"],
+                kb_types=["product", "faq"], relevance_threshold=0.15,
             )
-            if not docs:
-                docs = await asyncio.to_thread(
-                    hybrid_search, query=search_name, tenant_id=tenant_id,
-                    kb_types=["product", "faq"], relevance_threshold=0.15,
-                )
         except Exception as e:
             logger.exception(f"知识库检索回退异常: {e}")
             docs = []

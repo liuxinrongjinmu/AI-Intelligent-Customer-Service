@@ -134,7 +134,9 @@ async def classify_intent_node(state: AgentState) -> dict:
         "coref_resolved": coref_resolved,
         "ai_failed_count": ai_failed_count,
     }
-    set_cached_intent(current_message, result, tenant_id)
+    # 仅成功分类时写入缓存（失败结果不缓存，避免 LLM 偶发故障后所有相同消息被错误路由）
+    if not (intent == "other" and intent_sub_type in ("unknown", "ambiguous")):
+        set_cached_intent(current_message, result, tenant_id)
     record_request_timing(time.time() - t0, intent=f"{intent}/{intent_sub_type}")
     return result
 

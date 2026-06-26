@@ -25,7 +25,15 @@ async def coupon_query_node(state: AgentState) -> dict:
     }
     status = status_map.get(intent_sub_type, "available")
 
+    thread_id = state.get("thread_id", "")
+
     if not user_id:
+        await call_and_log(
+            tenant_id=tenant_id, tool_name="query_coupon",
+            tool_params={"tenant_id": tenant_id, "user_id": "", "status": status},
+            func=lambda **kw: {"success": False, "message": "user_id为空"},
+            conversation_id=thread_id,
+        )
         return {"final_answer": "查询优惠券需要登录后操作，请先登录后再试。如需帮助，可以联系人工客服。"}
 
     thread_id = state.get("thread_id", "")
