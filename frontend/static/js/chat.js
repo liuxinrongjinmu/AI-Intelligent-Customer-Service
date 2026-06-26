@@ -7,11 +7,20 @@
  */
 (function() {
     const TID = document.querySelector('meta[name="tenant-id"]')?.content || '';
-    let sessionId = localStorage.getItem(`session_${TID}`) || '';
+
+    // 安全访问 localStorage（隐私模式/无痕浏览可能不可用）
+    let sessionId = '';
+    let storageAvailable = true;
+    try {
+        sessionId = localStorage.getItem('session_' + TID) || '';
+    } catch (e) {
+        storageAvailable = false;
+        console.warn('localStorage 不可用，会话仅在内存中保持');
+    }
 
     // 优先从 URL 参数获取 user_id（由聚宝赞端传入），否则生成临时 ID
     const USER_ID = new URLSearchParams(window.location.search).get('user_id')
-        || `u_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        || 'u_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     let isStreaming = false;
     let currentAIBubble = null;
     let lastUserMessage = '';          // 上一条用户消息（用于重试）
@@ -69,9 +78,18 @@
         return div.innerHTML.replace(/\n/g, '<br>');
     }
 
+    function saveSessionId(id) {
+        if (!storageAvailable) return;
+        try { localStorage.setItem('session_' + TID, id); } catch (e) {}
+    }
+
     function generateSessionId() {
-        // 使用 crypto.randomUUID() 生成密码学安全的会话 ID
-        return 'sess_' + crypto.randomUUID();
+        // 优先 crypto.randomUUID()，回退到时间戳+随机数
+        try {
+            return 'sess_' + crypto.randomUUID();
+        } catch (e) {
+            return 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 10);
+        }
     }
 
     /**
@@ -218,7 +236,7 @@
                             succeeded = true;
                             if (event.session_id) {
                                 sessionId = event.session_id;
-                                localStorage.setItem(`session_${TID}`, sessionId);
+                                saveSessionId(, sessionId);
                             }
                             // 成功完成后移除重试按钮
                             if (messageDiv) {
@@ -290,7 +308,7 @@
         // 确保 session_id 存在（首次对话自动生成）
         if (!sessionId) {
             sessionId = generateSessionId();
-            localStorage.setItem(`session_${TID}`, sessionId);
+            saveSessionId(, sessionId);
         }
 
         isStreaming = true;
@@ -327,7 +345,7 @@
     newSessionBtn.addEventListener('click', function() {
         // 生成新的 session_id 即为新会话
         sessionId = generateSessionId();
-        localStorage.setItem(`session_${TID}`, sessionId);
+        saveSessionId(, sessionId);
         chatArea.innerHTML = '';
         if (statusText) statusText.textContent = '';
         hasReceivedAIReply = false;
