@@ -42,5 +42,12 @@
 </div>
 
 <meta name="tenant-id" content="{{ tenant_id }}">
+<!-- 第1步：内嵌测试脚本，验证 JS 能否执行 -->
+<script>
+document.getElementById('statusText').textContent = '内嵌JS测试OK';
+document.getElementById('statusText').style.color = 'green';
+console.log('内嵌JS执行成功');
+</script>
+<!-- 第2步：加载完整聊天脚本 -->
 <script src="/static/js/chat.js?v=20260626"></script>
 {% endblock %}
