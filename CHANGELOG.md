@@ -4,13 +4,49 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased] - 2026-06-22
+## [Unreleased] - 2026-06-26
 
 ### 新增
-- 无
+- **Agent 模块拆分**：`backend/agent/nodes.py`（970行）拆分为 7 个子模块：
+  - `llm_utils.py` — LLM 安全调用 + 模型工厂
+  - `retrieval_utils.py` — RRF 融合 / 关键词加成 / 格式化 / 输出清理
+  - `classifier.py` — 意图识别 + 路由分发
+  - `retriever.py` — 知识检索节点
+  - `generator.py` — 回答生成 + 问候节点
+  - `domains/` — 业务域节点（order / product / coupon / account / complaint / human）
+  - `nodes.py` 改为向后兼容重导出模块
+- 安全配置增强：`config.py` 新增安全类型转换 `_safe_int()` / `_safe_float()` + Token 预算超限告警
+- 生产环境 GATEWAY_VERIFIED_VALUE 未配置时拒绝启动
+- `NotRequired` 增加 `typing_extensions` 回退（Python 3.9 兼容）
 
 ### 变更
-- **移除退款功能**：经聚宝赞业务方确认无此场景，删除 `refund_service` 相关代码与配置项，避免误触发与维护成本。
+- **依赖锁定文件重生成**：修正 `sentence-transformers`/`langgraph-checkpoint-postgres` 等 5+ 个版本号
+- **CSP 安全加固**：移除 `script-src 'unsafe-inline'`，TENANT_ID 改用 `<meta>` 标签传递
+- Dockerfile CMD 改为 exec 形式确保 SIGTERM 正确递达 uvicorn
+- 部署脚本 `deploy.py` pg_dump 命令硬编码用户名/数据库名
+- Grafana 仪表盘指标名修正 `kefu_request_latency_ms` → `kefu_request_duration_ms`
+- HighHandoffRate 告警增加 `clamp_min` 防除零
+- GitHub Actions mypy 改为 `continue-on-error`，deploy job 支持条件推送/部署
+- 测试工具函数 `_make_state` 统一提取到 `tests/unit/conftest.py`
+
+### 修复
+- 修复 `chat.js` timeoutId 闭包 TDZ 引用错误
+- 修复会话 ID 可预测问题：`generateSessionId()` 改用 `crypto.randomUUID()`
+- 移除 HTML 中未使用的重复元素 `statusText2`
+- 修复 Python 3.9 类型注解兼容性（`dict | None` → `Optional[Dict]`）
+
+### 安全
+- 从 Git 追踪中移除 `.env.dev` / `.env.prod` / `.env.test`（含敏感凭证）
+- 备份清理逻辑扩展支持旧 `.db` 格式备份文件
+
+### 清理
+- 删除 `data/backups/`（274MB 旧 SQLite 备份）
+- 删除 `.backup/redundant_scripts_20260622/`（6个废弃脚本）
+- 清理 WAL/SHM 临时文件（~4MB）
+- 清理 git filter-branch 产生的乱码文件
+
+### 移除
+- 无
 
 ### 修复
 

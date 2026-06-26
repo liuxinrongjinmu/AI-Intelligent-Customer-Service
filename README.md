@@ -120,7 +120,7 @@
 
 ### 安全防护
 
-- **Prompt 注入检测**：18 种注入模式 + Unicode 归一化 + 零宽字符过滤
+- **Prompt 注入检测**：20 种注入模式 + Unicode 归一化 + 零宽字符过滤
 - **敏感词审核**：赌博/色情/毒品/诈骗等敏感词拦截
 - **输出过滤**：防止系统提示词泄露
 - **API Key 安全**：`hmac.compare_digest` 时序安全比较
@@ -363,26 +363,46 @@ kefu_agent/
 ├── backend/                    # 后端核心代码
 │   ├── agent/                  # Agent 工作流
 │   │   ├── graph.py            # LangGraph 图构建（节点 + 路由拓扑）
-│   │   ├── nodes.py            # 各节点实现（意图识别、检索、生成等）
+│   │   ├── nodes.py            # 节点重导出（向后兼容）
 │   │   ├── prompts.py          # 系统提示词（分类 + 生成 + 各场景）
-│   │   └── state.py            # Agent 状态定义 + 意图层级体系
+│   │   ├── state.py            # Agent 状态定义 + 意图层级体系
+│   │   ├── classifier.py       # 意图识别 + 路由分发
+│   │   ├── retriever.py        # 知识检索节点
+│   │   ├── generator.py        # 回答生成 + 问候节点
+│   │   ├── llm_utils.py        # LLM 安全调用 + 模型工厂
+│   │   ├── retrieval_utils.py  # RRF 融合 / 格式化 / 输出清理
+│   │   └── domains/            # 业务域节点
+│   │       ├── order.py        # 订单 + 物流查询
+│   │       ├── product.py      # 商品咨询
+│   │       ├── coupon.py       # 优惠券查询
+│   │       ├── account.py      # 账户查询
+│   │       ├── complaint.py    # 投诉处理
+│   │       └── human.py        # 转人工服务
 │   ├── api/                    # API 路由
 │   │   ├── chat.py             # 消费者聊天（SSE 流式）
 │   │   ├── knowledge.py        # 知识库同步
 │   │   ├── stats.py            # 监控统计
-│   │   └── tenant.py           # 租户管理
+│   │   ├── tenant.py           # 租户管理
+│   │   └── handoff.py          # 转人工工单管理
 │   ├── knowledge/              # 知识处理
 │   │   ├── faq_service.py      # FAQ 服务
 │   │   ├── loader.py           # 文档加载器
-│   │   └── splitter.py         # 文档分块器
+│   │   ├── splitter.py         # 文档分块器
+│   │   └── sync_log.py         # 同步日志 + 回滚
 │   ├── middleware/              # 中间件
 │   │   ├── http_client.py      # 全局 HTTP 客户端 + 限流中间件
-│   │   └── tenant.py           # 租户上下文中间件
+│   │   ├── tenant.py           # 租户上下文 + API Key 认证
+│   │   └── gateway_auth.py     # Gateway 认证 + IP 白名单
+│   ├── nacos/                  # Nacos 服务治理
+│   │   ├── registry.py         # 服务注册 + 心跳
+│   │   ├── discovery.py        # 服务发现 + 负载均衡
+│   │   └── nacos_client.py     # Nacos HTTP 请求 + 熔断器
 │   ├── models/                 # 数据库模型
-│   │   ├── conversation.py     # 对话 + 消息
+│   │   ├── conversation.py     # 对话 + 消息 + 工具调用日志
 │   │   ├── handoff.py          # 转人工工单
-│   │   ├── knowledge.py        # 知识库
-│   │   └── tenant.py           # 租户
+│   │   ├── knowledge.py        # FAQ + 文档
+│   │   ├── tenant.py           # 租户
+│   │   └── feedback.py         # 满意度评价
 │   ├── retrieval/              # 检索引擎
 │   │   ├── chunker.py          # 知识条目分块
 │   │   ├── embedding.py        # Embedding 模型加载
@@ -391,7 +411,8 @@ kefu_agent/
 │   ├── schemas/                # Pydantic 请求/响应模型
 │   │   ├── chat.py             # 聊天相关
 │   │   ├── knowledge.py        # 知识同步相关
-│   │   └── tenant.py           # 租户相关
+│   │   ├── tenant.py           # 租户相关
+│   │   └── stats.py            # 反馈/统计相关
 │   ├── services/               # 业务服务
 │   │   ├── coupon_service.py   # 优惠券查询
 │   │   ├── handoff_service.py  # 转人工工单
@@ -421,13 +442,17 @@ kefu_agent/
 │   └── templates/
 │       ├── base.html           # 基础模板
 │       └── consumer/chat.html  # 消费者聊天页
-├── tests/                      # 单元测试
-│   ├── conftest.py             # pytest 配置
-│   ├── test_security.py        # 安全模块测试
-│   └── test_routing.py         # 意图路由测试
+├── tests/                      # 测试
+│   ├── conftest.py             # pytest 全局配置
+│   ├── unit/                   # 单元测试（20个文件, 290+ 用例）
+│   ├── integration/            # 集成测试
+│   └── eval/                   # 评估测试
+├── monitoring/                  # 监控配置
+│   ├── prometheus.yml          # Prometheus 抓取配置
+│   ├── alerts.yml              # 告警规则
+│   └── grafana/                # Grafana 仪表盘
 ├── data/                       # 运行时数据（git 忽略）
 │   └── chroma_db/              # ChromaDB 向量库
-├── .env                        # 环境变量（git 忽略，勿提交）
 ├── .env.example                # 环境变量示例
 ├── .gitignore                  # Git 忽略规则
 ├── Dockerfile                  # Docker 镜像构建
@@ -518,7 +543,7 @@ LLM 的上下文窗口有限，系统通过 Token 预算管理确保不超出限
    ├── 第1层：消息长度限制（4000 字符）
    │
    ├── 第2层：Prompt 注入检测
-   │   ├── 18 种注入模式匹配（中英文）
+   │   ├── 20 种注入模式匹配（中英文）
    │   ├── Unicode 归一化（防止全角字符绕过）
    │   └── 零宽字符过滤（防止不可见字符插入）
    │
