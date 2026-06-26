@@ -1,13 +1,12 @@
 """
-数据库自动备份模块（支持 PostgreSQL 和 SQLite 双模式）
+数据库自动备份模块（PostgreSQL）
 
 在 FastAPI 启动时注册后台任务，定时备份数据库。
 - 备份频率：每小时
 - 保留数量：最近 24 个备份 + 每日快照（7天）
 - 备份位置：data/backups/
 
-PostgreSQL 模式：使用 pg_dump 导出 SQL 文件
-SQLite 模式：使用 SQLite backup API 确保一致性
+使用 pg_dump 导出 SQL 文件
 """
 import asyncio
 import logging
@@ -16,12 +15,12 @@ import re
 import shutil
 import subprocess
 import time
+from typing import Optional
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
-from backend.config import SQLITE_PATH, DATABASE_URL
-from backend.database import USE_POSTGRES
+from backend.config import DATABASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +30,7 @@ BACKUP_INTERVAL_SECONDS = 3600       # 备份间隔：1小时
 MAX_HOURLY_BACKUPS = 24              # 保留最近 24 个每小时备份
 MAX_DAILY_BACKUPS = 7                # 保留最近 7 个每日快照
 
-_backup_task: asyncio.Task | None = None
+_backup_task: Optional[asyncio.Task] = None
 
 
 def _ensure_backup_dir():
@@ -120,32 +119,7 @@ def _backup_postgres(backup_path: Path) -> bool:
         return False
 
 
-def _backup_sqlite(backup_path: Path) -> bool:
-    """
-    使用 SQLite backup API 备份 SQLite 数据库（确保一致性）
-
-    :param backup_path: 备份文件路径
-    :return: 是否成功
-    """
-    try:
-        import sqlite3
-        src = sqlite3.connect(SQLITE_PATH)
-        dst = sqlite3.connect(str(backup_path))
-        try:
-            src.backup(dst)
-        finally:
-            # 确保异常时连接也被关闭，避免资源泄漏
-            dst.close()
-            src.close()
-
-        logger.info(f"SQLite 备份成功: {backup_path} ({backup_path.stat().st_size} bytes)")
-        return True
-    except Exception as e:
-        logger.error(f"SQLite 备份失败: {e}")
-        return False
-
-
-def backup_now() -> str | None:
+def backup_now() -> Optional[str]:
     """
     立即执行一次数据库备份
 
@@ -154,21 +128,14 @@ def backup_now() -> str | None:
     _ensure_backup_dir()
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    ext = ".dump" if USE_POSTGRES else ".db"
-    backup_path = BACKUP_DIR / f"app_{timestamp}{ext}"
+    backup_path = BACKUP_DIR / f"app_{timestamp}.dump"
     # 同秒调用时添加序号后缀，避免覆盖已有备份
     seq = 1
     while backup_path.exists():
-        backup_path = BACKUP_DIR / f"app_{timestamp}_{seq}{ext}"
+        backup_path = BACKUP_DIR / f"app_{timestamp}_{seq}.dump"
         seq += 1
 
-    if USE_POSTGRES:
-        success = _backup_postgres(backup_path)
-    else:
-        if not os.path.exists(SQLITE_PATH):
-            logger.warning(f"数据库文件不存在，跳过备份: {SQLITE_PATH}")
-            return None
-        success = _backup_sqlite(backup_path)
+    success = _backup_postgres(backup_path)
 
     if not success:
         # 清理失败的备份文件
@@ -178,6 +145,21 @@ def backup_now() -> str | None:
             except OSError:
                 pass
         return None
+
+    # 备份 ChromaDB 向量库（目录级拷贝）
+    chroma_src = Path(os.getenv("CHROMA_PATH", "data/chroma_db"))
+    if chroma_src.exists() and chroma_src.is_dir():
+        try:
+            chroma_backup = BACKUP_DIR / f"chroma_{timestamp}"
+            seq_c = 1
+            while chroma_backup.exists():
+                chroma_backup = BACKUP_DIR / f"chroma_{timestamp}_{seq_c}"
+                seq_c += 1
+            shutil.copytree(chroma_src, chroma_backup)
+            logger.info(f"ChromaDB 备份成功: {chroma_backup}")
+        except Exception as e:
+            logger.warning(f"ChromaDB 备份失败(不影响数据库备份): {e}")
+
     return str(backup_path)
 
 
@@ -192,9 +174,10 @@ def _cleanup_old_backups():
     _ensure_backup_dir()
 
     try:
-        # 匹配 app_*.db 和 app_*.dump
+        # 匹配 app_*.dump、chroma_* 目录
         backups = sorted(
-            list(BACKUP_DIR.glob("app_*.db")) + list(BACKUP_DIR.glob("app_*.dump")),
+            list(BACKUP_DIR.glob("app_*.dump"))
+            + [p for p in BACKUP_DIR.glob("chroma_*") if p.is_dir()],
             key=lambda p: _safe_mtime(p),
             reverse=True,
         )
@@ -208,13 +191,13 @@ def _cleanup_old_backups():
         # 从剩余备份中，每天保留第一个作为每日快照
         daily_keep = set()
         seen_dates = set()
-        date_pattern = re.compile(r"app_(\d{8})_\d{6}")
+        date_pattern = re.compile(r"(?:app|chroma)_(\d{8})_\d{6}")
         for f in backups[MAX_HOURLY_BACKUPS:]:
             # 用正则校验文件名，跳过异常文件名
             match = date_pattern.match(f.stem)
             if not match:
                 continue
-            date_str = match.group(1)  # app_YYYYMMDD_HHMMSS -> YYYYMMDD
+            date_str = match.group(1)  # prefix_YYYYMMDD_HHMMSS -> YYYYMMDD
             if date_str not in seen_dates:
                 seen_dates.add(date_str)
                 daily_keep.add(f)
@@ -227,7 +210,10 @@ def _cleanup_old_backups():
         to_delete = set(backups) - hourly_keep - daily_keep
         for f in to_delete:
             try:
-                f.unlink()
+                if f.is_dir():
+                    shutil.rmtree(f)
+                else:
+                    f.unlink()
                 logger.info(f"清理过期备份: {f.name}")
             except OSError as e:
                 logger.warning(f"清理备份失败: {f.name}, {e}")

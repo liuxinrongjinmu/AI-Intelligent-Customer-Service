@@ -6,13 +6,15 @@ Gateway 认证中间件
 
 校验逻辑：
 1. 请求必须携带 X-Gateway-Verified 头（由 Gateway 注入）
-2. 请求来源 IP 必须在 VPN 网段白名单内
+2. 请求来源 IP 必须在 VPN 网段白名单内（仅使用 TCP 对端 IP，不信任可伪造的请求头）
 3. 两个条件同时满足才放行
 
-这确保了：
-- 外部请求无法伪造 Gateway 头（因为不在 VPN 网段内）
-- Gateway 本身的身份由 VPN 网络层保证
+安全策略：
+- Gateway 认证场景：仅使用 TCP 对端 IP（request.client.host），不信任 X-Real-IP / X-Forwarded-For
+- 限流场景：可信任反向代理注入的头（通过 trusted_proxy=True 参数）
 """
+from __future__ import annotations
+
 import ipaddress
 import logging
 import threading
@@ -73,8 +75,9 @@ def _is_ip_in_whitelist(client_ip: str) -> bool:
     """
     networks = _parse_ip_whitelist()
     if not networks:
-        # 白名单为空时允许所有（需配合 Gateway 头校验）
-        return True
+        # 白名单为空时拒绝所有（安全优先，防止配置遗漏导致无防护）
+        logger.warning("GATEWAY_IP_WHITELIST 未配置，拒绝所有 Gateway 认证请求")
+        return False
 
     try:
         ip = ipaddress.ip_address(client_ip)
@@ -84,26 +87,29 @@ def _is_ip_in_whitelist(client_ip: str) -> bool:
     return any(ip in network for network in networks)
 
 
-def _get_client_ip(request: Request) -> str:
+def _get_client_ip(request: Request, trusted_proxy: bool = False) -> str:
     """
-    获取客户端真实 IP（考虑代理转发）
+    获取客户端真实 IP
 
-    优先级：X-Real-IP > X-Forwarded-For 第一个 > request.client.host
+    安全策略：
+    - Gateway 认证场景（trusted_proxy=False）：仅使用 TCP 对端 IP，不信任可伪造的请求头
+    - 限流场景（trusted_proxy=True）：信任反向代理注入的 X-Forwarded-For / X-Real-IP
 
     :param request: FastAPI 请求对象
+    :param trusted_proxy: 是否信任代理头（仅限流中间件使用）
     :return: 客户端 IP 地址
     """
-    real_ip = request.headers.get("X-Real-IP")
-    if real_ip:
-        return real_ip.split(",")[0].strip()
+    if trusted_proxy:
+        real_ip = request.headers.get("X-Real-IP")
+        if real_ip:
+            return real_ip.split(",")[0].strip()
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            return forwarded_for.split(",")[0].strip()
 
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-
+    # 默认使用 TCP 对端 IP（不可伪造）
     if request.client:
         return request.client.host
-
     return "unknown"
 
 

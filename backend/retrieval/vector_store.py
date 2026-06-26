@@ -15,6 +15,7 @@ import queue
 import time
 import chromadb
 from chromadb.config import Settings
+from typing import Optional
 from backend.config import CHROMA_PATH
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,15 @@ def _get_client() -> chromadb.PersistentClient:
     return _client
 
 
+def get_chroma_client() -> chromadb.PersistentClient:
+    """
+    获取 ChromaDB 客户端实例（公共接口，供健康检查等外部模块使用）
+
+    :return: ChromaDB PersistentClient 实例
+    """
+    return _get_client()
+
+
 def get_collection(tenant_id: str, kb_type: str = "faq") -> chromadb.Collection:
     """
     获取指定租户和知识库类型的 ChromaDB collection
@@ -61,7 +71,7 @@ def get_collection(tenant_id: str, kb_type: str = "faq") -> chromadb.Collection:
     return client.get_or_create_collection(name=name)
 
 
-def get_collections(tenant_id: str, kb_types: list[str] | None = None) -> list[tuple[str, chromadb.Collection]]:
+def get_collections(tenant_id: str, kb_types: Optional[list[str]] = None) -> list[tuple[str, chromadb.Collection]]:
     """
     批量获取多个知识库类型的 collection
 
@@ -118,7 +128,7 @@ def clear_collection(tenant_id: str, kb_type: str):
 # ============================================================
 
 _write_queue: queue.Queue = queue.Queue()
-_write_thread: threading.Thread | None = None
+_write_thread: Optional[threading.Thread] = None
 _write_thread_lock = threading.Lock()
 _WRITE_THREAD_NAME = "chroma-writer"
 
@@ -273,6 +283,7 @@ def query_collection(
     return collection.query(
         query_embeddings=query_embeddings,
         n_results=n_results,
+        where={"kb_type": kb_type} if kb_type else None,
     )
 
 

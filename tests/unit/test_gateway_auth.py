@@ -121,18 +121,18 @@ class TestGatewayAuth:
         _reset_ip_whitelist_cache()
         assert _is_ip_in_whitelist("10.0.0.5") is False
 
-    def test_empty_whitelist_returns_true_compat_mode(self, monkeypatch):
-        """白名单为空字符串时返回 True（兼容模式）"""
+    def test_empty_whitelist_returns_false_secure_mode(self, monkeypatch):
+        """白名单为空字符串时返回 False（安全优先，防止配置遗漏导致无防护）"""
         monkeypatch.setattr(gateway_auth, "GATEWAY_IP_WHITELIST", "")
         _reset_ip_whitelist_cache()
-        assert _is_ip_in_whitelist("8.8.8.8") is True
-        assert _is_ip_in_whitelist("10.0.0.1") is True
+        assert _is_ip_in_whitelist("8.8.8.8") is False
+        assert _is_ip_in_whitelist("10.0.0.1") is False
 
-    def test_whitelist_none_returns_true(self, monkeypatch):
-        """白名单为 None 时返回 True"""
+    def test_whitelist_none_returns_false(self, monkeypatch):
+        """白名单为 None 时返回 False（安全优先）"""
         monkeypatch.setattr(gateway_auth, "GATEWAY_IP_WHITELIST", None)
         _reset_ip_whitelist_cache()
-        assert _is_ip_in_whitelist("8.8.8.8") is True
+        assert _is_ip_in_whitelist("8.8.8.8") is False
 
     def test_single_ip_format_slash_32(self, monkeypatch):
         """单 IP 格式 10.0.0.1/32 精确匹配 → True"""
@@ -166,40 +166,40 @@ class TestGatewayAuth:
     # ========================================================================
 
     def test_x_real_ip_priority(self):
-        """X-Real-IP 头存在时优先使用"""
+        """X-Real-IP 头存在时优先使用（trusted_proxy=True）"""
         req = _make_mock_request(
             headers={"X-Real-IP": "10.0.0.1", "X-Forwarded-For": "192.168.1.1"},
         )
-        assert _get_client_ip(req) == "10.0.0.1"
+        assert _get_client_ip(req, trusted_proxy=True) == "10.0.0.1"
 
     def test_x_forwarded_for_fallback(self):
-        """无 X-Real-IP 时使用 X-Forwarded-For 第一个 IP"""
+        """无 X-Real-IP 时使用 X-Forwarded-For 第一个 IP（trusted_proxy=True）"""
         req = _make_mock_request(
             headers={"X-Forwarded-For": "192.168.1.100, 10.0.0.2, 172.16.0.1"},
         )
-        assert _get_client_ip(req) == "192.168.1.100"
+        assert _get_client_ip(req, trusted_proxy=True) == "192.168.1.100"
 
     def test_x_forwarded_for_single_ip(self):
-        """X-Forwarded-For 只有单个 IP"""
+        """X-Forwarded-For 只有单个 IP（trusted_proxy=True）"""
         req = _make_mock_request(
             headers={"X-Forwarded-For": "172.16.5.5"},
         )
-        assert _get_client_ip(req) == "172.16.5.5"
+        assert _get_client_ip(req, trusted_proxy=True) == "172.16.5.5"
 
     def test_x_real_ip_with_multiple_entries(self):
-        """X-Real-IP 包含多个值（逗号分隔），取第一个"""
+        """X-Real-IP 包含多个值（逗号分隔），取第一个（trusted_proxy=True）"""
         req = _make_mock_request(
             headers={"X-Real-IP": "10.0.0.5, 10.0.0.6"},
         )
-        assert _get_client_ip(req) == "10.0.0.5"
+        assert _get_client_ip(req, trusted_proxy=True) == "10.0.0.5"
 
     def test_direct_connection_ip(self):
-        """无代理头时使用直连 IP """
+        """无代理头时使用直连 IP（trusted_proxy=False，默认行为）"""
         req = _make_mock_request(client_host="203.0.113.42")
         assert _get_client_ip(req) == "203.0.113.42"
 
     def test_x_real_ip_overrides_all(self):
-        """X-Real-IP 优先级最高，覆盖 X-Forwarded-For 和直连 IP"""
+        """X-Real-IP 优先级最高，覆盖 X-Forwarded-For 和直连 IP（trusted_proxy=True）"""
         req = _make_mock_request(
             headers={
                 "X-Real-IP": "10.10.10.10",
@@ -207,7 +207,7 @@ class TestGatewayAuth:
             },
             client_host="8.8.8.8",
         )
-        assert _get_client_ip(req) == "10.10.10.10"
+        assert _get_client_ip(req, trusted_proxy=True) == "10.10.10.10"
 
     def test_no_headers_no_client_returns_unknown(self):
         """request.client 为 None 时返回 'unknown'"""
@@ -215,6 +215,14 @@ class TestGatewayAuth:
         req.headers = {}
         req.client = None
         assert _get_client_ip(req) == "unknown"
+
+    def test_untrusted_proxy_ignores_headers(self):
+        """trusted_proxy=False 时忽略 X-Real-IP / X-Forwarded-For，使用 TCP 对端 IP"""
+        req = _make_mock_request(
+            headers={"X-Real-IP": "10.0.0.1", "X-Forwarded-For": "192.168.1.1"},
+            client_host="203.0.113.42",
+        )
+        assert _get_client_ip(req, trusted_proxy=False) == "203.0.113.42"
 
     # ========================================================================
     # 3. verify_gateway_request — Gateway 头校验（集成校验）
@@ -228,8 +236,10 @@ class TestGatewayAuth:
         monkeypatch.setattr(gateway_auth, "GATEWAY_VERIFIED_VALUE", "true")
         _reset_ip_whitelist_cache()
 
+        # verify_gateway_request 使用 TCP 对端 IP（不信任 X-Real-IP）
         req = _make_mock_request(
-            headers={"X-Gateway-Verified": "true", "X-Real-IP": "10.0.0.1"},
+            headers={"X-Gateway-Verified": "true"},
+            client_host="10.0.0.1",
         )
         result = await verify_gateway_request(req)
         assert result == "gateway_authed"
@@ -243,7 +253,8 @@ class TestGatewayAuth:
         _reset_ip_whitelist_cache()
 
         req = _make_mock_request(
-            headers={"X-Gateway-Verified": "false", "X-Real-IP": "10.0.0.1"},
+            headers={"X-Gateway-Verified": "false"},
+            client_host="10.0.0.1",
         )
         with pytest.raises(HTTPException) as exc_info:
             await verify_gateway_request(req)
@@ -259,7 +270,7 @@ class TestGatewayAuth:
         _reset_ip_whitelist_cache()
 
         req = _make_mock_request(
-            headers={"X-Real-IP": "10.0.0.1"},
+            client_host="10.0.0.1",
         )
         with pytest.raises(HTTPException) as exc_info:
             await verify_gateway_request(req)
@@ -274,8 +285,10 @@ class TestGatewayAuth:
         monkeypatch.setattr(gateway_auth, "GATEWAY_VERIFIED_VALUE", "true")
         _reset_ip_whitelist_cache()
 
+        # verify_gateway_request 使用 TCP 对端 IP，X-Real-IP 不被信任
         req = _make_mock_request(
-            headers={"X-Gateway-Verified": "true", "X-Real-IP": "8.8.8.8"},
+            headers={"X-Gateway-Verified": "true"},
+            client_host="8.8.8.8",
         )
         with pytest.raises(HTTPException) as exc_info:
             await verify_gateway_request(req)
@@ -284,28 +297,31 @@ class TestGatewayAuth:
 
     @pytest.mark.asyncio
     async def test_empty_whitelist_with_correct_header(self, monkeypatch):
-        """白名单为空 + 正确 Gateway 头 → 通过（兼容模式）"""
+        """白名单为空 + 正确 Gateway 头 → 401（安全优先，白名单为空拒绝所有）"""
         monkeypatch.setattr(gateway_auth, "GATEWAY_IP_WHITELIST", "")
         monkeypatch.setattr(gateway_auth, "GATEWAY_VERIFIED_HEADER", "X-Gateway-Verified")
         monkeypatch.setattr(gateway_auth, "GATEWAY_VERIFIED_VALUE", "true")
         _reset_ip_whitelist_cache()
 
         req = _make_mock_request(
-            headers={"X-Gateway-Verified": "true", "X-Real-IP": "8.8.8.8"},
+            headers={"X-Gateway-Verified": "true"},
+            client_host="8.8.8.8",
         )
-        result = await verify_gateway_request(req)
-        assert result == "gateway_authed"
+        with pytest.raises(HTTPException) as exc_info:
+            await verify_gateway_request(req)
+        assert exc_info.value.status_code == 401
+        assert exc_info.value.detail["code"] == "GATEWAY_IP_FORBIDDEN"
 
     @pytest.mark.asyncio
     async def test_empty_whitelist_without_header(self, monkeypatch):
-        """白名单为空但缺少 Gateway 头 → 401（两者都必须满足）"""
+        """白名单为空但缺少 Gateway 头 → 401"""
         monkeypatch.setattr(gateway_auth, "GATEWAY_IP_WHITELIST", "")
         monkeypatch.setattr(gateway_auth, "GATEWAY_VERIFIED_HEADER", "X-Gateway-Verified")
         monkeypatch.setattr(gateway_auth, "GATEWAY_VERIFIED_VALUE", "true")
         _reset_ip_whitelist_cache()
 
         req = _make_mock_request(
-            headers={"X-Real-IP": "10.0.0.1"},
+            client_host="10.0.0.1",
         )
         with pytest.raises(HTTPException) as exc_info:
             await verify_gateway_request(req)
@@ -321,14 +337,16 @@ class TestGatewayAuth:
         _reset_ip_whitelist_cache()
 
         req = _make_mock_request(
-            headers={"X-Gateway-Verified": "TRUE", "X-Real-IP": "10.0.0.1"},
+            headers={"X-Gateway-Verified": "TRUE"},
+            client_host="10.0.0.1",
         )
         result = await verify_gateway_request(req)
         assert result == "gateway_authed"
 
         # 再测混合大小写
         req2 = _make_mock_request(
-            headers={"X-Gateway-Verified": "True", "X-Real-IP": "10.0.0.2"},
+            headers={"X-Gateway-Verified": "True"},
+            client_host="10.0.0.2",
         )
         result2 = await verify_gateway_request(req2)
         assert result2 == "gateway_authed"

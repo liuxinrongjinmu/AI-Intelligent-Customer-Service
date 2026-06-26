@@ -4,17 +4,15 @@
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, Body, HTTPException
-from sqlalchemy import func
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func, text as sa_text
 from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.utils.metrics import get_metrics_text, get_metrics_json
 from backend.utils.response_cache import cache_stats
 from backend.models.conversation import Conversation, Message
 from backend.models.handoff import HandoffTicket
-from backend.models.feedback import Feedback
 from backend.utils.auth import verify_chat_api_key
-from backend.schemas.stats import FeedbackRequest
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +20,67 @@ router = APIRouter(prefix="/api/v1/system", tags=["system"])
 
 
 @router.get("/health")
-def health_check():
-    """健康检查"""
-    return {"status": "ok"}
+async def health_check():
+    """
+    深度健康检查：探测所有依赖组件的连通性
+
+    返回各组件状态，任一组件异常则整体状态为 degraded
+    """
+    checks = {}
+
+    # 1. PostgreSQL 数据库
+    try:
+        from backend.database import get_engine
+        engine = get_engine()
+        with engine.connect() as conn:
+            conn.execute(sa_text("SELECT 1"))
+        checks["postgresql"] = {"status": "ok"}
+    except Exception as e:
+        checks["postgresql"] = {"status": "error", "detail": str(e)[:200]}
+
+    # 2. Redis
+    try:
+        from backend.utils.redis_client import get_redis
+        redis = await get_redis()
+        if redis:
+            await redis.ping()
+            checks["redis"] = {"status": "ok"}
+        else:
+            checks["redis"] = {"status": "degraded", "detail": "using memory fallback"}
+    except Exception as e:
+        checks["redis"] = {"status": "degraded", "detail": f"connection failed: {str(e)[:100]}"}
+
+    # 3. ChromaDB 向量库
+    try:
+        from backend.retrieval.vector_store import get_chroma_client
+        client = get_chroma_client()
+        # PersistentClient 不支持 heartbeat()（chromadb 1.5+），
+        # 用 list_collections 验证客户端可用性
+        client.list_collections()
+        checks["chromadb"] = {"status": "ok"}
+    except Exception as e:
+        checks["chromadb"] = {"status": "error", "detail": str(e)[:200]}
+
+    # 4. Nacos 服务注册
+    try:
+        from backend.nacos.registry import is_registered
+        registered = is_registered()
+        checks["nacos"] = {"status": "ok" if registered else "not_registered"}
+    except Exception as e:
+        checks["nacos"] = {"status": "error", "detail": str(e)[:200]}
+
+    # 汇总状态
+    has_error = any(c["status"] == "error" for c in checks.values())
+    has_degraded = any(c["status"] in ("degraded", "not_registered") for c in checks.values())
+
+    if has_error:
+        overall = "unhealthy"
+    elif has_degraded:
+        overall = "degraded"
+    else:
+        overall = "ok"
+
+    return {"status": overall, "checks": checks}
 
 
 @router.get("/metrics")
@@ -153,67 +209,3 @@ def kb_health_check(
     return health
 
 
-@router.post("/feedback")
-def submit_feedback(
-    body: FeedbackRequest = Body(...),
-    _auth: str = Depends(verify_chat_api_key),
-    db: Session = Depends(get_db),
-):
-    """提交对话满意度评价"""
-    conv = db.query(Conversation).filter_by(thread_id=body.thread_id).first()
-    if not conv:
-        raise HTTPException(
-            status_code=404,
-            detail={"code": "CONVERSATION_NOT_FOUND", "message": "会话不存在"}
-        )
-
-    feedback = Feedback(
-        tenant_id=body.tenant_id or conv.tenant_id,
-        conversation_id=conv.id,
-        thread_id=body.thread_id,
-        rating=body.rating,
-        comment=body.comment,
-    )
-    db.add(feedback)
-    db.commit()
-    db.refresh(feedback)
-    return {"success": True, "feedback": feedback.to_dict()}
-
-
-@router.get("/feedback")
-def get_feedback_stats(
-    tenant_id: str = Query(..., description="租户ID"),
-    days: int = Query(30, ge=1, le=365),
-    _auth: str = Depends(verify_chat_api_key),
-    db: Session = Depends(get_db),
-):
-    """获取满意度统计"""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-
-    q = db.query(Feedback).filter(
-        Feedback.tenant_id == tenant_id,
-        Feedback.created_at >= cutoff,
-    )
-    total = q.count()
-    if total == 0:
-        return {"tenant_id": tenant_id, "total": 0, "avg_rating": 0, "distribution": {}}
-
-    avg_rating = db.query(func.avg(Feedback.rating)).filter(
-        Feedback.tenant_id == tenant_id,
-        Feedback.created_at >= cutoff,
-    ).scalar()
-
-    dist = (
-        db.query(Feedback.rating, func.count(Feedback.id))
-        .filter(Feedback.tenant_id == tenant_id, Feedback.created_at >= cutoff)
-        .group_by(Feedback.rating)
-        .all()
-    )
-
-    return {
-        "tenant_id": tenant_id,
-        "period_days": days,
-        "total": total,
-        "avg_rating": round(float(avg_rating), 2),
-        "distribution": {r: c for r, c in dist},
-    }

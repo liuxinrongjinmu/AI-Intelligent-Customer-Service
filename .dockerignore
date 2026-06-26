@@ -1,4 +1,4 @@
-# Python
+# Python 缓存
 __pycache__/
 *.py[cod]
 *$py.class
@@ -13,7 +13,7 @@ build/
 .env.local
 .env.production
 
-# 运行时数据
+# 运行时数据（Docker 内由 volume 挂载）
 data/
 *.db
 *.db-shm
@@ -47,3 +47,16 @@ _*.py
 # Git
 .git/
 .gitignore
+
+# 部署脚本（不需要进入镜像）
+deploy.py
+
+# Docker 相关（不需要进入镜像）
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# 开发工具配置（requirements-lock.txt 需要保留，Dockerfile 中 COPY 使用）
+requirements.txt
+ruff.toml
+pyproject.toml

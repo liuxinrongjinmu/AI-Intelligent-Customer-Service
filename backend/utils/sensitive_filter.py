@@ -114,16 +114,42 @@ class SensitiveDataFilter(logging.Filter):
 def mask_sensitive(text: str) -> str:
     """
     对文本中的敏感信息进行掩码处理
-    可用于 API 响应日志中的消息内容脱敏
+
+    覆盖类型：手机号、订单号、身份证号、银行卡号、邮箱、API Key
+
+    :param text: 原始文本
+    :return: 脱敏后的文本
     """
     if not text:
         return text
+    # 手机号
     text = re.sub(r'1[3-9]\d{9}', lambda m: _mask_phone(m.group()), text)
+    # 订单号
     text = re.sub(
         r'\b(?:ORD|DD|order|NO\.?)\s*[A-Za-z0-9\-]{4,30}\b',
         lambda m: _mask_order_no(m.group()),
         text,
         flags=re.IGNORECASE
+    )
+    # 身份证号
+    text = re.sub(
+        r'\b[1-9]\d{5}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]\b',
+        lambda m: _mask_id_card(m.group()),
+        text,
+    )
+    # 银行卡号
+    text = re.sub(r'\b622\d{12,18}\b', lambda m: _mask_bank_card(m.group()), text)
+    # 邮箱
+    text = re.sub(
+        r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
+        lambda m: _mask_email(m.group()),
+        text,
+    )
+    # API Key
+    text = re.sub(
+        r'\b(?:sk-|key-|token-)[A-Za-z0-9\-_]{16,60}\b',
+        lambda m: _mask_api_key(m.group()),
+        text,
     )
     return text
 

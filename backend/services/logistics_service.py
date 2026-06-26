@@ -10,8 +10,9 @@ from backend.config import (
     LOGISTICS_API_TIMEOUT,
     LOGISTICS_SERVICE_NAME,
 )
-from backend.nacos.http_client import nacos_request
+from backend.nacos.nacos_client import nacos_request
 from backend.utils.retry import retry_on_transient_error
+from backend.utils.helpers import resolve_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ async def _do_query_logistics(tenant_id: str, order_no: str) -> dict[str, Any]:
     :param order_no: 订单号
     :return: API 响应 JSON
     """
-    body: dict[str, Any] = {"tenantId": tenant_id, "orderNo": order_no}
+    body: dict[str, Any] = {"tenantId": resolve_tenant_id(tenant_id), "orderNo": order_no}
     headers = {"Content-Type": "application/json"}
 
     response = await nacos_request(
@@ -119,7 +120,9 @@ def format_logistics_result(result: dict[str, Any]) -> str:
             courier_info = courier
             if courier_phone:
                 # 快递员电话脱敏，仅保留前3后4
-                masked_phone = courier_phone[:3] + "****" + courier_phone[-4:] if len(courier_phone) >= 7 else "****"
+                # 手机号脱敏（统一调用 mask_mobile，保留前3后4）
+                from backend.utils.security import mask_mobile
+                masked_phone = mask_mobile(courier_phone)
                 courier_info += f"（{masked_phone}）"
             parts.append(f"快递员：{courier_info}")
 

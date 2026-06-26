@@ -3,7 +3,7 @@
 """
 import logging
 import os
-import re
+import re as _re
 import unicodedata
 from pathlib import Path
 
@@ -40,7 +40,7 @@ OUTPUT_FILTER_PATTERNS = [
     r'(?i)GENERATE_SYSTEM_PROMPT',
 ]
 
-ZERO_WIDTH_CHARS = re.compile(r'[\u200b\u200c\u200d\ufeff\u00ad]')
+ZERO_WIDTH_CHARS = _re.compile(r'[\u200b\u200c\u200d\ufeff\u00ad]')
 
 
 def _normalize_unicode(text: str) -> str:
@@ -81,7 +81,7 @@ def detect_injection(message: str) -> tuple[bool, str]:
     processed = _preprocess(message)
 
     for pattern in INJECTION_PATTERNS:
-        if re.search(pattern, processed):
+        if _re.search(pattern, processed):
             return True, f"检测到潜在注入模式: {pattern[:60]}..."
 
     return False, ""
@@ -100,7 +100,7 @@ def sanitize_output(text: str) -> str:
         return text
 
     for pattern in OUTPUT_FILTER_PATTERNS:
-        text = re.sub(pattern, '[内容已过滤]', text)
+        text = _re.sub(pattern, '[内容已过滤]', text)
 
     return text
 
@@ -126,7 +126,7 @@ def validate_message(message: str) -> str:
 
     # 注入检测（使用已预处理的结果）
     for pattern in INJECTION_PATTERNS:
-        if re.search(pattern, processed):
+        if _re.search(pattern, processed):
             raise ValueError(f"检测到不安全的输入: 检测到潜在注入模式: {pattern[:60]}...")
 
     # 敏感词检测（使用已预处理的结果）

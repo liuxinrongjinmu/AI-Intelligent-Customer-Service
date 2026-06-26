@@ -5,6 +5,7 @@ Nacos 服务发现 + 客户端负载均衡
 """
 import logging
 import time
+from typing import Optional
 from nacos import NacosClient
 from backend.config import NACOS_GROUP
 
@@ -60,7 +61,7 @@ class ServiceDiscovery:
             # 返回过期缓存作为降级
             return self._cache.get(service_name, [])
 
-    def get_instance(self, service_name: str) -> dict | None:
+    def get_instance(self, service_name: str) -> Optional[dict]:
         """
         获取一个可用服务实例（轮询策略）
 
@@ -75,7 +76,7 @@ class ServiceDiscovery:
         self._rr_index[service_name] = (idx + 1) % len(instances)
         return instances[idx]
 
-    def get_base_url(self, service_name: str) -> str | None:
+    def get_base_url(self, service_name: str) -> Optional[str]:
         """
         获取服务的基础 URL（http://ip:port）
 
@@ -87,7 +88,7 @@ class ServiceDiscovery:
             return None
         return f"http://{instance['ip']}:{instance['port']}"
 
-    def invalidate_cache(self, service_name: str | None = None):
+    def invalidate_cache(self, service_name: Optional[str] = None):
         """
         主动清除缓存（用于实例故障后强制刷新）
 
@@ -102,7 +103,7 @@ class ServiceDiscovery:
 
 
 # 全局服务发现单例
-_service_discovery: ServiceDiscovery | None = None
+_service_discovery: Optional[ServiceDiscovery] = None
 
 
 def get_service_discovery() -> ServiceDiscovery:

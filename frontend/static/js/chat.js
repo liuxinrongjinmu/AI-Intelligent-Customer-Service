@@ -9,17 +9,13 @@
     const TID = window.TENANT_ID;
     let sessionId = localStorage.getItem(`session_${TID}`) || '';
 
-    // 自动生成 user_id（前端消费者无登录态，使用随机ID标识）
-    let USER_ID = window.USER_ID || localStorage.getItem(`user_${TID}`);
-    if (!USER_ID) {
-        USER_ID = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
-        localStorage.setItem(`user_${TID}`, USER_ID);
-    }
+    // 优先从 URL 参数获取 user_id（由聚宝赞端传入），否则生成临时 ID
+    const USER_ID = new URLSearchParams(window.location.search).get('user_id')
+        || `u_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     let isStreaming = false;
     let currentAIBubble = null;
     let lastUserMessage = '';          // 上一条用户消息（用于重试）
     let hasReceivedAIReply = false;    // 是否已收到AI回复（控制快捷问题隐藏）
-    let selectedRating = 0;            // 当前选中的满意度评分
 
     const chatArea = document.getElementById('chatArea');
     const messageInput = document.getElementById('messageInput');
@@ -28,10 +24,6 @@
     const typingIndicator = document.getElementById('typingIndicator');
     const statusText = document.getElementById('statusText');
     const quickQuestions = document.getElementById('quickQuestions');
-    const feedbackArea = document.getElementById('feedbackArea');
-    const feedbackStars = document.getElementById('feedbackStars');
-    const feedbackComment = document.getElementById('feedbackComment');
-    const feedbackSubmit = document.getElementById('feedbackSubmit');
 
     // 状态文案映射表
     const STATUS_MAP = {
@@ -93,33 +85,6 @@
      */
     function hideQuickQuestions() {
         if (quickQuestions) quickQuestions.classList.remove('visible');
-    }
-
-    /**
-     * 显示满意度评价区域并重置表单
-     */
-    function showFeedbackArea() {
-        if (!feedbackArea) return;
-        selectedRating = 0;
-        if (feedbackComment) feedbackComment.value = '';
-        if (feedbackStars) {
-            feedbackStars.querySelectorAll('.feedback-star').forEach(function(s) {
-                s.classList.remove('active');
-            });
-        }
-        if (feedbackSubmit) {
-            feedbackSubmit.disabled = false;
-            feedbackSubmit.textContent = '提交评价';
-        }
-        feedbackArea.classList.add('visible');
-        scrollToBottom();
-    }
-
-    /**
-     * 隐藏满意度评价区域
-     */
-    function hideFeedbackArea() {
-        if (feedbackArea) feedbackArea.classList.remove('visible');
     }
 
     /**
@@ -256,8 +221,6 @@
                             if (messageDiv) {
                                 messageDiv.querySelectorAll('.message-retry').forEach(function(b) { b.remove(); });
                             }
-                            // 聊天结束后显示满意度评价区域
-                            showFeedbackArea();
                         } else if (event.type === 'error') {
                             if (aiBubble) {
                                 aiBubble.innerHTML = `<span style="color:#FF7675;">${escapeHtml(event.message)}</span>`;
@@ -327,9 +290,6 @@
             localStorage.setItem(`session_${TID}`, sessionId);
         }
 
-        // 发送下一条消息时自动隐藏满意度评价区域
-        hideFeedbackArea();
-
         isStreaming = true;
         sendBtn.disabled = true;
         messageInput.value = '';
@@ -368,7 +328,6 @@
         chatArea.innerHTML = '';
         if (statusText) statusText.textContent = '';
         hasReceivedAIReply = false;
-        hideFeedbackArea();
         // 新会话展示快捷问题引导
         showQuickQuestions();
         messageInput.focus();
@@ -383,59 +342,6 @@
             if (!q) return;
             messageInput.value = q;
             sendMessage();
-        });
-    }
-
-    // 满意度评分星星点击
-    if (feedbackStars) {
-        feedbackStars.addEventListener('click', function(e) {
-            const star = e.target.closest('.feedback-star');
-            if (!star) return;
-            selectedRating = parseInt(star.getAttribute('data-value'), 10);
-            feedbackStars.querySelectorAll('.feedback-star').forEach(function(s) {
-                if (parseInt(s.getAttribute('data-value'), 10) <= selectedRating) {
-                    s.classList.add('active');
-                } else {
-                    s.classList.remove('active');
-                }
-            });
-        });
-    }
-
-    // 满意度评价提交
-    if (feedbackSubmit) {
-        feedbackSubmit.addEventListener('click', async function() {
-            /**
-             * 提交满意度评价到后端
-             */
-            if (!selectedRating) {
-                alert('请先选择评分');
-                return;
-            }
-            feedbackSubmit.disabled = true;
-            feedbackSubmit.textContent = '提交中...';
-            try {
-                const resp = await fetch('/api/v1/system/feedback', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        thread_id: sessionId,
-                        rating: selectedRating,
-                        comment: feedbackComment ? feedbackComment.value : '',
-                        tenant_id: String(TID)
-                    })
-                });
-                if (!resp.ok) {
-                    const err = await resp.json().catch(function() { return {}; });
-                    throw new Error(err.detail || '提交失败');
-                }
-                feedbackSubmit.textContent = '感谢您的评价！';
-                setTimeout(function() { hideFeedbackArea(); }, 2000);
-            } catch (e) {
-                alert('评价提交失败：' + e.message);
-                feedbackSubmit.disabled = false;
-                feedbackSubmit.textContent = '提交评价';
-            }
         });
     }
 

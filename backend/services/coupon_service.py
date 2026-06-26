@@ -12,8 +12,10 @@ from backend.config import (
     COUPON_API_TIMEOUT,
     COUPON_SERVICE_NAME,
 )
-from backend.nacos.http_client import nacos_request
+from backend.nacos.nacos_client import nacos_request
 from backend.utils.retry import retry_on_transient_error
+from backend.utils.security import mask_mobile
+from backend.utils.helpers import resolve_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +84,7 @@ async def query_coupon(
             end_time = (now + timedelta(days=365)).strftime("%Y-%m-%dT%H:%M:%S")
 
         body: dict[str, Any] = {
-            "tenantId": tenant_id,
+            "tenantId": resolve_tenant_id(tenant_id),
             "page": page,
             "pageSize": page_size,
             "startTime": start_time,

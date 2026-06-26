@@ -11,8 +11,9 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi import Request
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import RedirectResponse, Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.database import init_db
@@ -25,6 +26,7 @@ from backend.api.tenant import router as tenant_router
 from backend.api.knowledge import router as knowledge_router
 from backend.api.chat import router as chat_router
 from backend.api.stats import router as stats_router
+from backend.api.handoff import router as handoff_router
 from backend.utils.sensitive_filter import install_sensitive_filter
 from backend.utils.request_id import request_id_var, get_request_id
 from backend.utils.metrics import mark_request_start, record_request, increment_active, decrement_active
@@ -108,7 +110,7 @@ async def lifespan(app: FastAPI):
     if errors:
         for e in errors:
             logger.error(f"配置错误: {e}")
-        logger.warning("配置校验存在错误，请尽快修复")
+        raise RuntimeError(f"配置校验失败，拒绝启动: {'; '.join(errors)}")
     logger.info("初始化数据库...")
     init_db()
     # 数据库自动备份
@@ -121,6 +123,12 @@ async def lifespan(app: FastAPI):
     if registered:
         # 保留任务引用，防止被 GC 回收
         _heartbeat_task = asyncio.create_task(heartbeat_loop())
+    else:
+        # 生产环境 Nacos 注册失败则拒绝启动
+        if ENV == "prod":
+            logger.error("生产环境 Nacos 注册失败，拒绝启动")
+            raise RuntimeError("Nacos 注册失败，生产环境不允许在未注册状态下运行")
+        logger.warning("Nacos 注册失败，非生产环境继续运行")
     logger.info("应用启动完成")
     yield
     # 关闭时清理
@@ -147,6 +155,10 @@ _docs_enabled = os.getenv("ENABLE_DOCS", "1") == "1" and ENV != "prod"
 docs_url = "/docs" if _docs_enabled else None
 redoc_url = "/redoc" if _docs_enabled else None
 
+_servers = [{"url": f"http://localhost:{PORT}", "description": "本地开发环境"}]
+if SWAGGER_SERVER_URL:
+    _servers.insert(0, {"url": SWAGGER_SERVER_URL, "description": "内网联调环境"})
+
 app = FastAPI(
     title="聚宝赞AI智能客服Agent",
     description="多租户AI客服系统 - MVP版本",
@@ -154,10 +166,7 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url=docs_url,
     redoc_url=redoc_url,
-    servers=[
-        {"url": SWAGGER_SERVER_URL, "description": "内网联调环境"},
-        {"url": f"http://localhost:{PORT}", "description": "本地开发环境"},
-    ],
+    servers=_servers,
 )
 
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",")
@@ -186,6 +195,34 @@ app.include_router(tenant_router)
 app.include_router(knowledge_router)
 app.include_router(chat_router)
 app.include_router(stats_router)
+app.include_router(handoff_router)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """请求参数校验失败统一响应格式"""
+    return JSONResponse(
+        status_code=422,
+        content={
+            "code": "VALIDATION_ERROR",
+            "message": str(exc.errors()),
+            "request_id": get_request_id(),
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """全局未捕获异常统一响应格式"""
+    logger.error(f"未捕获异常: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "code": "INTERNAL_ERROR",
+            "message": "服务暂时不可用，请稍后重试",
+            "request_id": get_request_id(),
+        },
+    )
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "frontend" / "templates"))

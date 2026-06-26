@@ -3,8 +3,6 @@
 """
 import pytest
 from unittest.mock import patch, MagicMock
-from backend.models.conversation import Conversation, Message
-from backend.models.feedback import Feedback
 
 
 class TestHealthCheck:
@@ -28,12 +26,12 @@ class TestMetrics:
         assert "kefu_active_requests" in resp.text
 
     def test_metrics_json_format(self, client):
-        """JSON 格式指标"""
+        """JSON 格式指标（prometheus_client 改造后仅提供 uptime + note）"""
         resp = client.get("/api/v1/system/metrics/json")
         assert resp.status_code == 200
         data = resp.json()
         assert "uptime_seconds" in data
-        assert "active_requests" in data
+        assert "note" in data
 
 
 class TestCacheInfo:
@@ -139,80 +137,3 @@ class TestKbHealth:
         data = resp.json()
         for col_info in data["collections"].values():
             assert col_info["status"] == "error"
-
-
-class TestFeedback:
-    """POST/GET /api/v1/system/feedback"""
-
-    def test_submit_feedback_success(self, client_with_seed):
-        """提交满意度评价"""
-        resp = client_with_seed.post("/api/v1/system/feedback", json={
-            "thread_id": "test_session_001",
-            "rating": 5,
-            "comment": "服务很好",
-            "tenant_id": "test_tenant",
-        })
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["success"] is True
-        assert data["feedback"]["rating"] == 5
-
-    def test_submit_feedback_conversation_not_found(self, client):
-        """会话不存在"""
-        resp = client.post("/api/v1/system/feedback", json={
-            "thread_id": "nonexistent_session",
-            "rating": 3,
-        })
-        assert resp.status_code == 404
-
-    def test_submit_feedback_rating_out_of_range(self, client):
-        """评分超出范围"""
-        resp = client.post("/api/v1/system/feedback", json={
-            "thread_id": "test_session_001",
-            "rating": 0,
-        })
-        assert resp.status_code == 422
-
-        resp = client.post("/api/v1/system/feedback", json={
-            "thread_id": "test_session_001",
-            "rating": 6,
-        })
-        assert resp.status_code == 422
-
-    def test_submit_feedback_missing_thread_id(self, client):
-        """缺少 thread_id"""
-        resp = client.post("/api/v1/system/feedback", json={
-            "rating": 4,
-        })
-        assert resp.status_code == 422
-
-    def test_get_feedback_stats_empty(self, client_with_seed):
-        """无评价数据时返回空统计"""
-        resp = client_with_seed.get("/api/v1/system/feedback", params={"tenant_id": "test_tenant"})
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["total"] == 0
-        assert data["avg_rating"] == 0
-
-    def test_get_feedback_stats_with_data(self, client_with_seed, db_with_seed):
-        """有评价数据时返回统计"""
-        # 先提交几条评价
-        for rating in [5, 4, 5]:
-            fb = Feedback(
-                tenant_id="test_tenant",
-                conversation_id=1,
-                thread_id="test_session_001",
-                rating=rating,
-            )
-            db_with_seed.add(fb)
-        db_with_seed.commit()
-
-        resp = client_with_seed.get("/api/v1/system/feedback", params={"tenant_id": "test_tenant"})
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["total"] == 3
-        assert data["avg_rating"] == pytest.approx(4.67, abs=0.01)
-        # distribution 的键可能是 int 或 str（取决于 SQLAlchemy 驱动）
-        dist = data["distribution"]
-        assert dist.get("5", dist.get(5)) == 2
-        assert dist.get("4", dist.get(4)) == 1

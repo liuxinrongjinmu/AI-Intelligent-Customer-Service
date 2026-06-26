@@ -1,4 +1,4 @@
-﻿# 聚宝赞 AI 智能客服 Agent
+# 聚宝赞 AI 智能客服 Agent
 
 > 基于大语言模型（DeepSeek）+ RAG 检索增强生成的多租户 AI 客服系统，支持意图识别、知识库问答、订单查询、物流追踪、商品查询、转人工等全链路客服场景。
 
@@ -85,7 +85,7 @@
          │              │              │
          ▼              ▼              ▼
    ┌──────────┐  ┌──────────┐  ┌──────────┐
-   │ ChromaDB  │  │ SQLite   │  │ 业务 API  │
+   │ ChromaDB  │  │PostgreSQL│  │ 业务 API  │
    │ 向量知识库 │  │ 对话存储  │  │ 订单/物流  │
    └──────────┘  └──────────┘  └──────────┘
 ```
@@ -137,7 +137,7 @@
 | Agent 框架 | LangGraph | 有状态的 Agent 工作流编排 |
 | 向量数据库 | ChromaDB | 知识库向量存储与检索 |
 | Embedding | BAAI/bge-small-zh-v1.5 | 中文文本向量化模型（本地运行） |
-| 关系数据库 | SQLite + SQLAlchemy | 对话记录、租户、工单等 |
+| 关系数据库 | PostgreSQL + SQLAlchemy | 对话记录、租户、工单等 |
 | 前端 | HTML + CSS + JavaScript | SSE 流式聊天气泡界面 |
 | 容器化 | Docker + docker-compose | 一键部署 |
 
@@ -244,9 +244,8 @@ python chat.py
 
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
-| `SQLITE_PATH` | `data/app.db` | SQLite 数据库路径 |
+| `DATABASE_URL` | `postgresql://kefu:kefu_pwd@localhost:5432/kefu_agent` | PostgreSQL 数据库连接串（必填） |
 | `CHROMA_PATH` | `data/chroma_db` | ChromaDB 向量库路径 |
-| `CHECKPOINT_PATH` | `data/checkpoints.db` | LangGraph 对话检查点路径 |
 
 ### 检索参数
 
@@ -275,7 +274,7 @@ python chat.py
 |--------|--------|------|
 | `HOST` | `127.0.0.1` | 监听地址 |
 | `PORT` | `8081` | 监听端口 |
-| `ADMIN_API_KEY` | `kefu-admin-dev-key` | 管理接口认证密钥 |
+| `ADMIN_API_KEY` | `change-me-admin-key` | 管理接口认证密钥 |
 | `GATEWAY_VERIFIED_HEADER` | `X-Gateway-Verified` | Gateway 验证头名称 |
 | `GATEWAY_IP_WHITELIST` | `10.0.0.0/8,172.16.0.0/12,192.168.0.0/16` | Gateway/VPN 网段 IP 白名单 |
 
@@ -381,7 +380,6 @@ kefu_agent/
 │   │   └── tenant.py           # 租户上下文中间件
 │   ├── models/                 # 数据库模型
 │   │   ├── conversation.py     # 对话 + 消息
-│   │   ├── feedback.py         # 满意度反馈
 │   │   ├── handoff.py          # 转人工工单
 │   │   ├── knowledge.py        # 知识库
 │   │   └── tenant.py           # 租户
@@ -428,9 +426,7 @@ kefu_agent/
 │   ├── test_security.py        # 安全模块测试
 │   └── test_routing.py         # 意图路由测试
 ├── data/                       # 运行时数据（git 忽略）
-│   ├── app.db                  # SQLite 数据库
-│   ├── chroma_db/              # ChromaDB 向量库
-│   └── checkpoints.db          # LangGraph 检查点
+│   └── chroma_db/              # ChromaDB 向量库
 ├── .env                        # 环境变量（git 忽略，勿提交）
 ├── .env.example                # 环境变量示例
 ├── .gitignore                  # Git 忽略规则
@@ -679,9 +675,8 @@ A:
 
 ### Q: 数据存储在哪里？
 
-A: 所有数据存储在 `data/` 目录下：
-- `data/app.db` — SQLite 数据库（对话、租户、工单等）
+A: 所有数据存储分布如下：
+- PostgreSQL 数据库 — 对话、租户、工单、检查点等（通过 `DATABASE_URL` 配置）
 - `data/chroma_db/` — ChromaDB 向量知识库
-- `data/checkpoints.db` — LangGraph 对话检查点
 
-备份时只需备份整个 `data/` 目录。
+备份方式：PostgreSQL 使用 `pg_dump` 备份，ChromaDB 备份 `data/chroma_db/` 目录。

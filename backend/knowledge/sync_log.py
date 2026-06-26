@@ -11,7 +11,7 @@ from typing import Optional
 from sqlalchemy import Column, String, Integer, DateTime, Text, create_engine
 from sqlalchemy.orm import Session
 
-from backend.database import SQLITE_PATH, engine, Base
+from backend.database import engine, Base
 
 logger = logging.getLogger(__name__)
 
@@ -72,28 +72,26 @@ def record_sync_log(
     :param snapshot: 同步数据快照（用于回滚）
     """
     from backend.database import SessionLocal
-    db: Session = SessionLocal()
-    try:
-        log = SyncLog(
-            tenant_id=tenant_id,
-            kb_type=kb_type,
-            sync_type=sync_type,
-            item_count=item_count,
-            processed_count=processed_count,
-            deleted_count=deleted_count,
-            status=status,
-            snapshot=json.dumps(snapshot, ensure_ascii=False) if snapshot else None,
-        )
-        db.add(log)
-        db.commit()
+    with SessionLocal() as db:
+        try:
+            log = SyncLog(
+                tenant_id=tenant_id,
+                kb_type=kb_type,
+                sync_type=sync_type,
+                item_count=item_count,
+                processed_count=processed_count,
+                deleted_count=deleted_count,
+                status=status,
+                snapshot=json.dumps(snapshot, ensure_ascii=False) if snapshot else None,
+            )
+            db.add(log)
+            db.commit()
 
-        # 清理旧日志：每个租户+知识库类型保留最近 50 条
-        _cleanup_old_logs(db, tenant_id, kb_type, keep=50)
-    except Exception as e:
-        logger.error(f"记录同步日志失败: {e}")
-        db.rollback()
-    finally:
-        db.close()
+            # 清理旧日志：每个租户+知识库类型保留最近 50 条
+            _cleanup_old_logs(db, tenant_id, kb_type, keep=50)
+        except Exception as e:
+            logger.error(f"记录同步日志失败: {e}")
+            db.rollback()
 
 
 def get_sync_history(
@@ -110,15 +108,12 @@ def get_sync_history(
     :return: 同步日志列表
     """
     from backend.database import SessionLocal
-    db: Session = SessionLocal()
-    try:
+    with SessionLocal() as db:
         q = db.query(SyncLog).filter(SyncLog.tenant_id == tenant_id)
         if kb_type:
             q = q.filter(SyncLog.kb_type == kb_type)
         logs = q.order_by(SyncLog.created_at.desc()).limit(limit).all()
         return [log.to_dict() for log in logs]
-    finally:
-        db.close()
 
 
 def get_last_sync_snapshot(tenant_id: str, kb_type: str) -> Optional[list[dict]]:
@@ -130,8 +125,7 @@ def get_last_sync_snapshot(tenant_id: str, kb_type: str) -> Optional[list[dict]]
     :return: 快照数据列表，无记录返回 None
     """
     from backend.database import SessionLocal
-    db: Session = SessionLocal()
-    try:
+    with SessionLocal() as db:
         log = (
             db.query(SyncLog)
             .filter(
@@ -146,8 +140,6 @@ def get_last_sync_snapshot(tenant_id: str, kb_type: str) -> Optional[list[dict]]
         if log and log.snapshot:
             return json.loads(log.snapshot)
         return None
-    finally:
-        db.close()
 
 
 def _cleanup_old_logs(db: Session, tenant_id: str, kb_type: str, keep: int = 50):

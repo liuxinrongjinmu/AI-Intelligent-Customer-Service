@@ -105,8 +105,12 @@ def main():
     # 1. 拉取代码
     run_cmd(ssh, f"cd {deploy_path} && git pull origin master")
 
+    # 1.5 保存当前镜像版本（用于回滚）
+    print(">>> 保存当前镜像版本...")
+    run_cmd(ssh, f"cd {deploy_path} && docker tag kefu-agent:latest kefu-agent:rollback 2>/dev/null || echo '无旧镜像可保存'")
+
     # 2. 部署前数据库备份（防止部署失败导致数据丢失）
-    # 自动识别数据库类型：优先 PostgreSQL（DATABASE_URL 配置时），回退 SQLite
+    # PostgreSQL 数据库备份
     print("\n>>> 部署前数据库备份...")
     backup_pg_cmd = (
         f"cd {deploy_path} && "
@@ -116,16 +120,9 @@ def main():
         f"&& echo 'PostgreSQL 备份成功' && ls -lh data/pg_backup_*.sql | tail -5 "
         f"|| echo 'PostgreSQL 备份跳过（容器未运行或未配置）'"
     )
-    backup_sqlite_cmd = (
-        f"cd {deploy_path} && if [ -f data/app.db ]; then "
-        f"cp data/app.db data/app_pre_deploy_$(date +%Y%m%d_%H%M%S).db "
-        f"&& echo 'SQLite 备份成功' && ls -lh data/app_pre_deploy_*.db | tail -5; "
-        f"else echo 'SQLite 文件不存在，跳过备份'; fi"
-    )
     run_cmd(ssh, backup_pg_cmd, timeout=60)
-    run_cmd(ssh, backup_sqlite_cmd, timeout=30)
-    # 清理超过7天的旧备份（PostgreSQL + SQLite）
-    run_cmd(ssh, f"cd {deploy_path} && find data/ -name 'pg_backup_*.sql' -mtime +7 -delete 2>/dev/null; find data/ -name 'app_pre_deploy_*.db' -mtime +7 -delete 2>/dev/null; echo '旧备份清理完成'")
+    # 清理超过7天的旧备份
+    run_cmd(ssh, f"cd {deploy_path} && find data/ -name 'pg_backup_*.sql' -mtime +7 -delete 2>/dev/null; echo '旧备份清理完成'")
 
     # 3. 停止旧容器
     run_cmd(ssh, f"cd {deploy_path} && docker compose down", timeout=60)
@@ -134,8 +131,8 @@ def main():
     code = run_cmd(ssh, f"cd {deploy_path} && docker compose up -d --build 2>&1", timeout=1800)
     if code != 0:
         print(f"\n[错误] Docker 构建失败，退出码: {code}")
-        print("[回滚] 正在重新启动旧容器...")
-        run_cmd(ssh, f"cd {deploy_path} && docker compose up -d 2>&1", timeout=120)
+        print("[回滚] 正在使用 rollback 镜像恢复服务...")
+        run_cmd(ssh, f"cd {deploy_path} && docker tag kefu-agent:rollback kefu-agent:latest 2>/dev/null && docker compose up -d 2>&1 || echo '回滚失败，请手动恢复'", timeout=120)
         ssh.close()
         sys.exit(1)
 

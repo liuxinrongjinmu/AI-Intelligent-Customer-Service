@@ -492,3 +492,30 @@ if __name__ == "__main__":
     print("=" * 60)
 
     sys.exit(0 if failed == 0 else 1)
+
+
+# ============================================================
+# pytest 兼容入口（CI 可自动发现并运行）
+# ============================================================
+
+import pytest
+
+@pytest.mark.skipif(os.getenv("SKIP_E2E", "").lower() == "true", reason="SKIP_E2E=true")
+@pytest.mark.asyncio
+async def test_full_pipeline_all_scenarios():
+    """全链路集成测试（覆盖 6 大场景）"""
+    await run_all_scenarios()
+
+
+async def run_all_scenarios():
+    """运行全部 6 大场景测试"""
+    test_scenario_1()
+    test_scenario_2()
+    test_scenario_3()
+    test_scenario_4()
+    test_scenario_5()
+    test_scenario_6()
+    global passed, failed
+    total = passed + failed
+    if failed > 0:
+        raise AssertionError(f"全链路测试失败: {failed}/{total} 项未通过")

@@ -7,6 +7,7 @@
   human_serving → ended (人工结束)
   queued → ai_serving / human_serving (分配)
 """
+from typing import Optional
 from sqlalchemy import Column, String, DateTime, Integer, Float, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 
@@ -73,7 +74,7 @@ class Conversation(Base):
             "ended_at": self.ended_at.isoformat() if self.ended_at else None,
         }
 
-    def transfer_to_human(self, priority: int = 5, summary: str = "", tags: list | None = None) -> None:
+    def transfer_to_human(self, priority: int = 5, summary: str = "", tags: Optional[list] = None) -> None:
         """转人工"""
         self.status = "human_serving"
         self.priority = max(self.priority, priority)

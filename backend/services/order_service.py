@@ -10,9 +10,10 @@ from backend.config import (
     ORDER_API_TIMEOUT,
     ORDER_SERVICE_NAME,
 )
-from backend.nacos.http_client import nacos_request
+from backend.nacos.nacos_client import nacos_request
 from backend.utils.retry import retry_on_transient_error
 from backend.utils.security import mask_mobile
+from backend.utils.helpers import resolve_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ async def _do_query_order(tenant_id: str, order_no: str) -> dict[str, Any]:
     :param order_no: 订单号
     :return: API 响应 JSON
     """
-    body: dict[str, Any] = {"tenantId": tenant_id, "orderNo": order_no}
+    body: dict[str, Any] = {"tenantId": resolve_tenant_id(tenant_id), "orderNo": order_no}
     headers = {"Content-Type": "application/json"}
 
     response = await nacos_request(

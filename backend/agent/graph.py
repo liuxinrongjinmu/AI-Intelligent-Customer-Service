@@ -13,15 +13,14 @@ LangGraph Agent 图构建：定义节点和路由的完整拓扑
     ├─ complaint         → complaint_node → END
     └─ greeting/feedback/other → greeting_answer → END
 
-多轮对话：通过 AsyncSqliteSaver 持久化 checkpoints，服务重启不丢失对话状态
+多轮对话：通过 AsyncPostgresSaver 持久化 checkpoints，服务重启不丢失对话状态
 """
 import asyncio
 import logging
-import aiosqlite
 from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
-from backend.config import CHECKPOINT_PATH
+from backend.config import DATABASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,8 @@ from backend.agent.nodes import (
 
 _agent = None
 _agent_lock = asyncio.Lock()
-_checkpoint_conn = None
+_checkpointer = None
+_checkpointer_ctx = None  # 保持上下文管理器活跃，避免连接被关闭
 
 
 def build_graph() -> StateGraph:
@@ -95,28 +95,29 @@ def build_graph() -> StateGraph:
 
 async def build_graph_async() -> StateGraph:
     """
-    构建并编译 Agent 图（异步版本，使用 AsyncSqliteSaver 持久化）
+    构建并编译 Agent 图（异步版本，使用 AsyncPostgresSaver 持久化）
+
+    langgraph-checkpoint-postgres 3.0+ 的 from_conn_string 返回异步上下文管理器，
+    需要手动管理其生命周期：启动时进入，应用关闭时退出。
     """
-    global _checkpoint_conn
-    import os
-    os.makedirs(os.path.dirname(CHECKPOINT_PATH) or ".", exist_ok=True)
+    global _checkpointer, _checkpointer_ctx
     try:
-        conn = await aiosqlite.connect(CHECKPOINT_PATH)
-        await conn.execute("PRAGMA journal_mode=WAL")
-        await conn.execute("PRAGMA busy_timeout=5000")
-        _checkpoint_conn = conn
-        memory = AsyncSqliteSaver(conn)
+        # 手动进入上下文管理器，保持连接活跃
+        _checkpointer_ctx = AsyncPostgresSaver.from_conn_string(DATABASE_URL)
+        memory = await _checkpointer_ctx.__aenter__()
         await memory.setup()
+        _checkpointer = memory
         graph = build_graph()
         return graph.compile(checkpointer=memory)
     except Exception as e:
         logger.warning(f"Checkpoint 连接失败: {e}")
-        if _checkpoint_conn:
+        _checkpointer = None
+        if _checkpointer_ctx:
             try:
-                await _checkpoint_conn.close()
-            except Exception as e2:
-                logger.debug(f"关闭 checkpoint 连接失败: {e2}")
-        _checkpoint_conn = None
+                await _checkpointer_ctx.__aexit__(None, None, None)
+            except Exception:
+                pass
+            _checkpointer_ctx = None
         raise
 
 
@@ -134,15 +135,16 @@ async def get_agent() -> StateGraph:
 
 async def close_agent():
     """
-    关闭 Agent 资源（aiosqlite 连接）
+    关闭 Agent 资源（退出上下文管理器，释放数据库连接）
     在应用 lifespan shutdown 时调用
     """
-    global _agent, _checkpoint_conn
+    global _agent, _checkpointer, _checkpointer_ctx
     async with _agent_lock:
-        if _checkpoint_conn is not None:
-            try:
-                await _checkpoint_conn.close()
-            except Exception as e:
-                logger.debug(f"关闭 checkpoint 连接失败: {e}")
-            _checkpoint_conn = None
         _agent = None
+        _checkpointer = None
+        if _checkpointer_ctx:
+            try:
+                await _checkpointer_ctx.__aexit__(None, None, None)
+            except Exception as e:
+                logger.warning(f"关闭 Checkpoint 连接异常: {e}")
+            _checkpointer_ctx = None

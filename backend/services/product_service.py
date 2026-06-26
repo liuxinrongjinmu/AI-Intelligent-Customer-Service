@@ -12,8 +12,9 @@ from backend.config import (
     PRODUCT_API_TIMEOUT,
     PRODUCT_SERVICE_NAME,
 )
-from backend.nacos.http_client import nacos_request
+from backend.nacos.nacos_client import nacos_request
 from backend.utils.retry import retry_on_transient_error
+from backend.utils.helpers import resolve_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ async def _do_query_product(tenant_id: str, product_id: str) -> dict[str, Any]:
     :param product_id: 商品ID
     :return: API 响应 JSON
     """
-    body = {"tenantId": tenant_id, "productId": product_id}
+    body = {"tenantId": resolve_tenant_id(tenant_id), "productId": product_id}
     headers = {"Content-Type": "application/json"}
 
     response = await nacos_request(
@@ -56,7 +57,7 @@ async def _do_search_product(tenant_id: str, product_name: str, page: int = 1, p
     :return: API 响应 JSON
     """
     body = {
-        "tenantId": tenant_id,
+        "tenantId": resolve_tenant_id(tenant_id),
         "productName": product_name,
         "page": page,
         "pageSize": page_size,

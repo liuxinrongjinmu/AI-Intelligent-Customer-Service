@@ -15,22 +15,25 @@ logger = logging.getLogger(__name__)
 
 def estimate_tokens(text: str) -> int:
     """
-    预估文本的 token 数量
+    估算文本的 token 数量
 
-    DeepSeek 系列模型使用类似 GPT 的 tokenizer（cl100k_base），
-    中文约 1.5~2 字符/token，英文约 3~4 字符/token。
-    为兼容未安装 tiktoken 的环境，使用字符级估算。
-
-    可选优化: 安装 pip install tiktoken 后在 init_tiktoken 中启用精确计数
+    优先使用 tiktoken 精确计数（DeepSeek 使用 cl100k_base 词表），
+    不可用时回退到字符级粗估。
 
     :param text: 输入文本
-    :return: 预估 token 数
+    :return: 估算的 token 数
     """
     if not text:
         return 0
-    chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff' or '\u3000' <= c <= '\u303f')
-    other_chars = len(text) - chinese_chars
-    return int(chinese_chars * 1.8 + other_chars * 0.3)
+    try:
+        import tiktoken
+        enc = tiktoken.get_encoding("cl100k_base")
+        return len(enc.encode(text))
+    except (ImportError, Exception):
+        # 回退到字符级估算
+        chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff' or '\u3000' <= c <= '\u303f')
+        other_chars = len(text) - chinese_chars
+        return int(chinese_chars * 1.8 + other_chars * 0.3)
 
 
 def trim_messages(

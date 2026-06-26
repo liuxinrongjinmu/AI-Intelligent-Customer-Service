@@ -767,6 +767,10 @@ async def coupon_query_node(state: AgentState) -> dict:
     }
     status = status_map.get(intent_sub_type, "available")
 
+    # user_id 为空时无法查询个人优惠券，返回提示
+    if not user_id:
+        return {"final_answer": "查询优惠券需要登录后操作，请先登录后再试。如需帮助，可以联系人工客服。"}
+
     thread_id = state.get("thread_id", "")
     api_result = await call_and_log(
         tenant_id=tenant_id,
@@ -919,6 +923,23 @@ async def human_service_node(state: AgentState) -> dict:
         logger.error(f"创建转人工工单超时: tenant={tenant_id}, thread={thread_id}")
         answer = "抱歉，转人工服务暂时不可用，请稍后重试或拨打客服热线。"
         return {"final_answer": answer}
+
+    # 更新会话状态为"人工接待中"
+    try:
+        from backend.database import SessionLocal
+        from backend.models.conversation import Conversation
+        with SessionLocal() as db:
+            conv = db.query(Conversation).filter_by(thread_id=thread_id).first()
+            if conv and conv.status == "ai_serving":
+                conv.transfer_to_human(
+                    priority=5,
+                    summary=history[:500],
+                    tags=["转人工", reason],
+                )
+                db.commit()
+                logger.info(f"会话状态已更新为 human_serving: thread={thread_id}")
+    except Exception as e:
+        logger.warning(f"更新会话状态失败(不影响主流程): {e}")
 
     record_handoff()
 

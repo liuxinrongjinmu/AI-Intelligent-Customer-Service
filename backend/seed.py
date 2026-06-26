@@ -130,7 +130,7 @@ def seed():
 
 def _sync_faqs_to_chromadb(tenant_id: str, db):
     """
-    将 SQLite 中的 FAQ 数据同步到 ChromaDB 新格式 collection
+    将数据库中的 FAQ 数据同步到 ChromaDB 新格式 collection
     """
     faqs = db.query(FAQ).filter_by(tenant_id=tenant_id).all()
     if not faqs:

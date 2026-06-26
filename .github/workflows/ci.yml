@@ -46,7 +46,7 @@ jobs:
           SKIP_E2E: "true"
           DEEPSEEK_API_KEY: "test-key-placeholder"
           ADMIN_API_KEY: "test-admin-key"
-        run: pytest tests/unit/ --cov=backend --cov-report=term-missing --cov-fail-under=50
+        run: pytest tests/unit/ --cov=backend --cov-report=term-missing --cov-fail-under=70
 
   build:
     needs: test
@@ -56,3 +56,24 @@ jobs:
 
       - name: Docker 镜像构建验证
         run: docker build -t kefu-agent:ci-test .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 构建并推送 Docker 镜像
+        run: |
+          docker build -t kefu-agent:${{ github.sha }} .
+          echo "镜像构建完成: kefu-agent:${{ github.sha }}"
+          # TODO: 配置镜像仓库后取消注释
+          # docker login -u ${{ secrets.REGISTRY_USER }} -p ${{ secrets.REGISTRY_PASS }}
+          # docker push your-registry/kefu-agent:${{ github.sha }}
+
+      - name: 部署到生产环境
+        run: |
+          echo "自动部署待配置（需 SSH 密钥和目标服务器）"
+          # TODO: 配置后取消注释
+          # python deploy.py --server ${{ secrets.DEPLOY_SERVER }}
