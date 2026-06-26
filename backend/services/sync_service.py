@@ -17,7 +17,7 @@ from typing import Optional
 from backend.retrieval.vector_store import (
     clear_collection, add_to_collection_sync, delete_from_collection, get_collection
 )
-from backend.retrieval.embedding import get_embedding_model
+from backend.retrieval.embedding import get_embedding_model, embed_documents_async
 from backend.retrieval.chunker import chunk_items
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 BATCH_EMBED_SIZE = int(os.getenv("SYNC_BATCH_EMBED_SIZE", "32"))
 
 
-def process_sync(
+async def process_sync(
     tenant_id: str,
     kb_type: str,
     sync_type: str,
@@ -73,17 +73,16 @@ def process_sync(
     items = chunk_items(items)
     total = len(items)
 
-    embedding_model = get_embedding_model()
     processed = 0
 
-    # Phase 1: 收集所有 content，批量计算 embedding
+    # Phase 1: 收集所有 content，批量计算 embedding（异步，不阻塞事件循环）
     contents = [item.get("content", "") for item in items]
 
     t0 = time.time()
     all_embeddings = []
     for i in range(0, len(contents), BATCH_EMBED_SIZE):
         batch = contents[i:i + BATCH_EMBED_SIZE]
-        embeddings = embedding_model.embed_documents(batch)
+        embeddings = await embed_documents_async(batch)
         all_embeddings.extend(embeddings)
     embed_time = time.time() - t0
     logger.info(f"批量 embedding 完成: count={len(all_embeddings)}, time={embed_time:.2f}s")
@@ -162,7 +161,7 @@ def process_sync(
     return {"processed_count": processed, "deleted_count": deleted}
 
 
-def process_batch(
+async def process_batch(
     tenant_id: str,
     kb_type: str,
     items: list[dict],
@@ -196,16 +195,15 @@ def process_batch(
     items = chunk_items(items)
     total = len(items)
 
-    embedding_model = get_embedding_model()
     processed = 0
 
-    # Phase 2a: 收集所有 content，批量计算 embedding
+    # Phase 2a: 收集所有 content，批量计算 embedding（异步）
     contents = [item.get("content", "") for item in items]
 
     all_embeddings = []
     for i in range(0, len(contents), BATCH_EMBED_SIZE):
         batch = contents[i:i + BATCH_EMBED_SIZE]
-        embeddings = embedding_model.embed_documents(batch)
+        embeddings = await embed_documents_async(batch)
         all_embeddings.extend(embeddings)
 
     # Phase 2b: 逐条写入 ChromaDB

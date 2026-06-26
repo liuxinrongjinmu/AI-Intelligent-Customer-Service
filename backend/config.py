@@ -1,142 +1,201 @@
 """
-配置管理：所有配置项从环境变量加载，提供模块级变量访问
+配置管理：基于 Pydantic Settings 的类型安全配置
 
-使用方式：from backend.config import DEEPSEEK_API_KEY, DATABASE_URL, ...
-启动时调用 validate_config() 进行完整校验
+所有配置项通过 Settings 类定义（自动从环境变量 / .env 文件加载），
+然后以模块级变量形式重新导出，保持 import 兼容性。
+
+使用方式：
+    from backend.config import DEEPSEEK_API_KEY, DATABASE_URL, ...
+    from backend.config import settings          # 获取完整 Settings 对象
+    from backend.config import validate_config    # 启动时校验
 """
-import os
 import logging
-from dotenv import load_dotenv
-
-load_dotenv()
+from typing import Optional, Literal
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
 
-# ─── 安全类型转换工具 ───────────────────────────────────────────
+
+class Settings(BaseSettings):
+    """应用配置（Pydantic Settings，自动从 .env / 环境变量加载）"""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=False,
+    )
+
+    # ─── 运行环境 ────────────────────────────────────────────────
+    env: Literal["dev", "test", "prod"] = Field(default="dev", description="运行环境")
+
+    # ─── LLM 配置 ─────────────────────────────────────────────────
+    deepseek_api_key: str = Field(default="", description="DeepSeek API 密钥（必填）")
+    deepseek_base_url: str = Field(default="https://api.deepseek.com")
+    llm_model: str = Field(default="deepseek-chat", description="LLM 模型名称")
+    llm_temperature_classify: float = Field(default=0.0, ge=0.0, le=2.0)
+    llm_temperature_generate: float = Field(default=0.7, ge=0.0, le=2.0)
+    llm_max_tokens: int = Field(default=2048, ge=1, le=65536)
+
+    # ─── Embedding 模型 ───────────────────────────────────────────
+    embedding_model: str = Field(default="BAAI/bge-small-zh-v1.5")
+    embedding_device: str = Field(default="cpu")
+    hf_endpoint: str = Field(default="https://hf-mirror.com")
+
+    # ─── 存储路径 ─────────────────────────────────────────────────
+    chroma_path: str = Field(default="data/chroma_db")
+    database_url: str = Field(default="", description="PostgreSQL 连接串（必填）")
+
+    # ─── 检索参数 ─────────────────────────────────────────────────
+    retrieval_top_k: int = Field(default=5, ge=1, le=100)
+    retrieval_threshold: float = Field(default=0.2, ge=0.0, le=1.0)
+    max_history_turns: int = Field(default=10, ge=1, le=50)
+    doc_chunk_size: int = Field(default=800, ge=100, le=10000)
+    doc_chunk_overlap: int = Field(default=100, ge=0, le=1000)
+
+    # ─── Token 预算 ───────────────────────────────────────────────
+    context_total_budget: int = Field(default=8000, ge=1000, le=128000)
+    system_prompt_budget: int = Field(default=1500, ge=100, le=32000)
+    history_message_budget: int = Field(default=2500, ge=100, le=32000)
+    knowledge_context_budget: int = Field(default=2500, ge=100, le=32000)
+    response_reserved_tokens: int = Field(default=2048, ge=128, le=32768)
+    history_max_turns_fallback: int = Field(default=6, ge=1, le=50)
+
+    # ─── 服务配置 ─────────────────────────────────────────────────
+    host: str = Field(default="127.0.0.1")
+    port: int = Field(default=8081, ge=1, le=65535)
+    swagger_server_url: str = Field(default="")
+    enable_docs: bool = Field(default=True)
+    admin_api_key: str = Field(default="change-me-admin-key")
+    allowed_origins: str = Field(default="", description="CORS 允许域名（逗号分隔）")
+    workers: int = Field(default=1, ge=1, le=16)
+
+    # ─── Gateway 认证 ─────────────────────────────────────────────
+    gateway_verified_header: str = Field(default="X-Gateway-Verified")
+    gateway_verified_value: str = Field(default="")
+    gateway_ip_whitelist: str = Field(
+        default="10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    )
+
+    # ─── Nacos ────────────────────────────────────────────────────
+    nacos_server_addr: str = Field(default="127.0.0.1:8848")
+    nacos_namespace: str = Field(default="")
+    nacos_group: str = Field(default="DEFAULT_GROUP")
+    nacos_username: str = Field(default="")
+    nacos_password: str = Field(default="")
+    service_ip: str = Field(default="")
+    service_port: int = Field(default=8081, ge=1, le=65535)
+
+    # ─── 业务 API 超时（秒）──────────────────────────────────────
+    order_api_timeout: int = Field(default=10, ge=1, le=120)
+    logistics_api_timeout: int = Field(default=10, ge=1, le=120)
+    product_api_timeout: int = Field(default=10, ge=1, le=120)
+    coupon_api_timeout: int = Field(default=10, ge=1, le=120)
+    user_profile_api_timeout: int = Field(default=10, ge=1, le=120)
+
+    # ─── Nacos 服务名 ─────────────────────────────────────────────
+    merchant_service_name: str = Field(default="merchant-service")
+    order_service_name: str = Field(default="")
+    product_service_name: str = Field(default="")
+    logistics_service_name: str = Field(default="")
+    coupon_service_name: str = Field(default="")
+    user_profile_service_name: str = Field(default="")
+    tenant_id_map: str = Field(default="")
+
+    # ─── Redis ────────────────────────────────────────────────────
+    redis_url: str = Field(default="redis://localhost:6379/0")
+    redis_password: str = Field(default="")
+    rate_limit_window: int = Field(default=60, ge=10, le=3600)
 
 
-def _safe_int(name: str, default: int) -> int:
-    """安全读取整型环境变量，非数字值时用默认值并告警"""
-    raw = os.getenv(name, "")
-    if not raw:
-        return default
+# ─── 全局单例 ────────────────────────────────────────────────────
+
+
+def _init_settings() -> Settings:
+    """延迟初始化 Settings，捕获错误并友好提示"""
     try:
-        return int(raw)
-    except (ValueError, TypeError):
-        logger.warning(f"配置 {name}={raw!r} 不是有效整数，使用默认值 {default}")
-        return default
+        return Settings()
+    except Exception as e:
+        logger.error(f"配置加载失败: {e}")
+        raise RuntimeError(f"无法加载配置，请检查 .env 文件: {e}") from e
 
 
-def _safe_float(name: str, default: float) -> float:
-    """安全读取浮点环境变量，非数字值时用默认值并告警"""
-    raw = os.getenv(name, "")
-    if not raw:
-        return default
-    try:
-        return float(raw)
-    except (ValueError, TypeError):
-        logger.warning(f"配置 {name}={raw!r} 不是有效浮点数，使用默认值 {default}")
-        return default
+settings = _init_settings()
 
 
-# ─── 运行环境 ────────────────────────────────────────────────────
+# ─── 向后兼容：模块级变量重导出 ──────────────────────────────────
 
-ENV = os.getenv("ENV", "dev")
+ENV: str = settings.env
 
-# ─── LLM 配置 ─────────────────────────────────────────────────────
+DEEPSEEK_API_KEY: str = settings.deepseek_api_key
+DEEPSEEK_BASE_URL: str = settings.deepseek_base_url
+LLM_MODEL: str = settings.llm_model
+DEEPSEEK_MODEL: str = settings.llm_model  # 别名
+LLM_TEMPERATURE_CLASSIFY: float = settings.llm_temperature_classify
+LLM_TEMPERATURE_GENERATE: float = settings.llm_temperature_generate
+LLM_MAX_TOKENS: int = settings.llm_max_tokens
 
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
-DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+EMBEDDING_MODEL: str = settings.embedding_model
+EMBEDDING_DEVICE: str = settings.embedding_device
+HF_ENDPOINT: str = settings.hf_endpoint
 
-LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
-DEEPSEEK_MODEL = LLM_MODEL  # 向后兼容别名
-LLM_TEMPERATURE_CLASSIFY = _safe_float("LLM_TEMPERATURE_CLASSIFY", 0.0)
-LLM_TEMPERATURE_GENERATE = _safe_float("LLM_TEMPERATURE_GENERATE", 0.7)
-LLM_MAX_TOKENS = _safe_int("LLM_MAX_TOKENS", 2048)
+CHROMA_PATH: str = settings.chroma_path
+DATABASE_URL: str = settings.database_url
 
-# ─── Embedding 模型配置 ───────────────────────────────────────────
+RETRIEVAL_TOP_K: int = settings.retrieval_top_k
+RETRIEVAL_THRESHOLD: float = settings.retrieval_threshold
+MAX_HISTORY_TURNS: int = settings.max_history_turns
+DOC_CHUNK_SIZE: int = settings.doc_chunk_size
+DOC_CHUNK_OVERLAP: int = settings.doc_chunk_overlap
 
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
-EMBEDDING_DEVICE = os.getenv("EMBEDDING_DEVICE", "cpu")
-HF_ENDPOINT = os.getenv("HF_ENDPOINT", "https://hf-mirror.com")
+CONTEXT_TOTAL_BUDGET: int = settings.context_total_budget
+SYSTEM_PROMPT_BUDGET: int = settings.system_prompt_budget
+HISTORY_MESSAGE_BUDGET: int = settings.history_message_budget
+KNOWLEDGE_CONTEXT_BUDGET: int = settings.knowledge_context_budget
+RESPONSE_RESERVED_TOKENS: int = settings.response_reserved_tokens
+HISTORY_MAX_TURNS_FALLBACK: int = settings.history_max_turns_fallback
 
-# ─── 存储路径 ─────────────────────────────────────────────────────
+HOST: str = settings.host
+PORT: int = settings.port
+SWAGGER_SERVER_URL: str = settings.swagger_server_url
+ADMIN_API_KEY: str = settings.admin_api_key
+ALLOWED_ORIGINS: str = settings.allowed_origins
+ENABLE_DOCS: bool = settings.enable_docs
+WORKERS: int = settings.workers
 
-CHROMA_PATH = os.getenv("CHROMA_PATH", "data/chroma_db")
-DATABASE_URL: str = os.getenv("DATABASE_URL", "").strip()
+GATEWAY_VERIFIED_HEADER: str = settings.gateway_verified_header
+GATEWAY_VERIFIED_VALUE: str = settings.gateway_verified_value
+GATEWAY_IP_WHITELIST: str = settings.gateway_ip_whitelist
 
-# ─── 检索参数 ─────────────────────────────────────────────────────
+NACOS_SERVER_ADDR: str = settings.nacos_server_addr
+NACOS_NAMESPACE: str = settings.nacos_namespace
+NACOS_GROUP: str = settings.nacos_group
+NACOS_USERNAME: str = settings.nacos_username
+NACOS_PASSWORD: str = settings.nacos_password
+SERVICE_IP: str = settings.service_ip
+SERVICE_PORT: int = settings.service_port
 
-RETRIEVAL_TOP_K = _safe_int("RETRIEVAL_TOP_K", 5)
-RETRIEVAL_THRESHOLD = _safe_float("RETRIEVAL_THRESHOLD", 0.2)
-MAX_HISTORY_TURNS = _safe_int("MAX_HISTORY_TURNS", 10)
-DOC_CHUNK_SIZE = _safe_int("DOC_CHUNK_SIZE", 800)
-DOC_CHUNK_OVERLAP = _safe_int("DOC_CHUNK_OVERLAP", 100)
+ORDER_API_TIMEOUT: int = settings.order_api_timeout
+LOGISTICS_API_TIMEOUT: int = settings.logistics_api_timeout
+PRODUCT_API_TIMEOUT: int = settings.product_api_timeout
+COUPON_API_TIMEOUT: int = settings.coupon_api_timeout
+USER_PROFILE_API_TIMEOUT: int = settings.user_profile_api_timeout
 
-# ─── Token 预算管理 ──────────────────────────────────────────────
+MERCHANT_SERVICE_NAME: str = settings.merchant_service_name
+ORDER_SERVICE_NAME: str = settings.order_service_name or settings.merchant_service_name
+PRODUCT_SERVICE_NAME: str = settings.product_service_name or settings.merchant_service_name
+LOGISTICS_SERVICE_NAME: str = settings.logistics_service_name or settings.merchant_service_name
+COUPON_SERVICE_NAME: str = settings.coupon_service_name or settings.merchant_service_name
+USER_PROFILE_SERVICE_NAME: str = settings.user_profile_service_name or settings.merchant_service_name
+TENANT_ID_MAP: str = settings.tenant_id_map
 
-CONTEXT_TOTAL_BUDGET = _safe_int("CONTEXT_TOTAL_BUDGET", 8000)
-SYSTEM_PROMPT_BUDGET = _safe_int("SYSTEM_PROMPT_BUDGET", 1500)
-HISTORY_MESSAGE_BUDGET = _safe_int("HISTORY_MESSAGE_BUDGET", 2500)
-KNOWLEDGE_CONTEXT_BUDGET = _safe_int("KNOWLEDGE_CONTEXT_BUDGET", 2500)
-RESPONSE_RESERVED_TOKENS = _safe_int("RESPONSE_RESERVED_TOKENS", 2048)
-HISTORY_MAX_TURNS_FALLBACK = _safe_int("HISTORY_MAX_TURNS_FALLBACK", 6)
-
-# ─── 服务配置 ─────────────────────────────────────────────────────
-
-HOST = os.getenv("HOST", "127.0.0.1")
-PORT = _safe_int("PORT", 8081)
-SWAGGER_SERVER_URL: str = os.getenv("SWAGGER_SERVER_URL", "")
-ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "change-me-admin-key")
-
-# ─── Gateway 认证配置 ────────────────────────────────────────────
-
-GATEWAY_VERIFIED_HEADER: str = os.getenv(
-    "GATEWAY_VERIFIED_HEADER", "X-Gateway-Verified"
-)
-GATEWAY_VERIFIED_VALUE: str = os.getenv("GATEWAY_VERIFIED_VALUE", "")
-GATEWAY_IP_WHITELIST: str = os.getenv(
-    "GATEWAY_IP_WHITELIST", "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
-)
-
-# ─── Nacos 服务注册与发现 ────────────────────────────────────────
-
-NACOS_SERVER_ADDR: str = os.getenv("NACOS_SERVER_ADDR", "127.0.0.1:8848")
-NACOS_NAMESPACE: str = os.getenv("NACOS_NAMESPACE", "")
-NACOS_GROUP: str = os.getenv("NACOS_GROUP", "DEFAULT_GROUP")
-NACOS_USERNAME: str = os.getenv("NACOS_USERNAME", "")
-NACOS_PASSWORD: str = os.getenv("NACOS_PASSWORD", "")
-SERVICE_IP: str = os.getenv("SERVICE_IP", "")
-SERVICE_PORT: int = _safe_int("SERVICE_PORT", PORT)
-
-# ─── 业务 API 超时配置 ───────────────────────────────────────────
-
-ORDER_API_TIMEOUT = _safe_int("ORDER_API_TIMEOUT", 10)
-LOGISTICS_API_TIMEOUT = _safe_int("LOGISTICS_API_TIMEOUT", 10)
-PRODUCT_API_TIMEOUT = _safe_int("PRODUCT_API_TIMEOUT", 10)
-COUPON_API_TIMEOUT = _safe_int("COUPON_API_TIMEOUT", 10)
-USER_PROFILE_API_TIMEOUT = _safe_int("USER_PROFILE_API_TIMEOUT", 10)
-
-# ─── Nacos 服务名映射 ────────────────────────────────────────────
-
-MERCHANT_SERVICE_NAME: str = os.getenv("MERCHANT_SERVICE_NAME", "merchant-service")
-ORDER_SERVICE_NAME: str = os.getenv("ORDER_SERVICE_NAME", MERCHANT_SERVICE_NAME)
-PRODUCT_SERVICE_NAME: str = os.getenv("PRODUCT_SERVICE_NAME", MERCHANT_SERVICE_NAME)
-LOGISTICS_SERVICE_NAME: str = os.getenv("LOGISTICS_SERVICE_NAME", MERCHANT_SERVICE_NAME)
-COUPON_SERVICE_NAME: str = os.getenv("COUPON_SERVICE_NAME", MERCHANT_SERVICE_NAME)
-USER_PROFILE_SERVICE_NAME: str = os.getenv(
-    "USER_PROFILE_SERVICE_NAME", MERCHANT_SERVICE_NAME
-)
-TENANT_ID_MAP: str = os.getenv("TENANT_ID_MAP", "")
-
-# ─── Redis 配置 ──────────────────────────────────────────────────
-
-REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "")
-RATE_LIMIT_WINDOW: int = _safe_int("RATE_LIMIT_WINDOW", 60)
+REDIS_URL: str = settings.redis_url
+REDIS_PASSWORD: str = settings.redis_password
+RATE_LIMIT_WINDOW: int = settings.rate_limit_window
 
 
-# ─── 配置校验 ────────────────────────────────────────────────────
+# ─── 校验函数 ────────────────────────────────────────────────────
 
 
 def validate_config():
@@ -150,57 +209,43 @@ def validate_config():
     warnings = []
     errors = []
 
-    # 必填项检查
-    if not DATABASE_URL:
+    # 必填项
+    if not settings.database_url:
         errors.append("DATABASE_URL 未配置，PostgreSQL 连接串为必填项")
-    if not DEEPSEEK_API_KEY:
+    if not settings.deepseek_api_key:
         errors.append("DEEPSEEK_API_KEY 未配置，LLM 调用将全部失败")
 
     # Gateway 安全
-    if not GATEWAY_IP_WHITELIST:
-        warnings.append("建议配置 GATEWAY_IP_WHITELIST（Gateway/VPN 网段白名单）")
-    if GATEWAY_IP_WHITELIST == "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16":
+    if not settings.gateway_ip_whitelist:
+        warnings.append("建议配置 GATEWAY_IP_WHITELIST")
+    if settings.gateway_ip_whitelist == "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16":
         warnings.append(
             "GATEWAY_IP_WHITELIST 使用默认值（覆盖所有内网段），"
-            "生产环境建议缩小为 Gateway 所在的具体网段"
+            "生产环境建议缩小为 Gateway 实际网段"
         )
 
     # Admin API Key
-    if not ADMIN_API_KEY or ADMIN_API_KEY == "change-me-admin-key":
-        if ENV == "prod":
-            errors.append(
-                "ADMIN_API_KEY 使用默认弱密钥 'change-me-admin-key'，生产环境拒绝启动。"
-                "请设置高强度随机密钥：python -c \"import secrets; print(secrets.token_urlsafe(32))\""
-            )
+    if settings.admin_api_key in ("", "change-me-admin-key"):
+        if settings.env == "prod":
+            errors.append("ADMIN_API_KEY 使用默认弱密钥，生产环境拒绝启动")
         else:
-            warnings.append(
-                "ADMIN_API_KEY 使用默认弱密钥，生产环境必须修改为高强度随机值"
-            )
+            warnings.append("ADMIN_API_KEY 使用默认弱密钥，生产环境必须修改")
 
-    # Gateway 验证令牌
-    if not GATEWAY_VERIFIED_VALUE:
-        if ENV == "prod":
-            errors.append(
-                "GATEWAY_VERIFIED_VALUE 未配置，生产环境拒绝启动。"
-                "请与聚宝赞端协商设置唯一令牌"
-            )
+    # Gateway 令牌
+    if not settings.gateway_verified_value:
+        if settings.env == "prod":
+            errors.append("GATEWAY_VERIFIED_VALUE 未配置，生产环境拒绝启动")
         else:
             warnings.append("GATEWAY_VERIFIED_VALUE 未配置，生产环境必须设置")
-    elif GATEWAY_VERIFIED_VALUE.lower() == "true":
-        warnings.append(
-            "GATEWAY_VERIFIED_VALUE 使用弱默认值 'true'，"
-            "生产环境必须修改为不可猜测的随机值"
-        )
+    elif settings.gateway_verified_value.lower() == "true":
+        warnings.append("GATEWAY_VERIFIED_VALUE 使用弱默认值，生产环境必须修改")
 
-    # Token 预算合理性
-    total_allocated = (
-        SYSTEM_PROMPT_BUDGET + HISTORY_MESSAGE_BUDGET
-        + KNOWLEDGE_CONTEXT_BUDGET + RESPONSE_RESERVED_TOKENS
+    # Token 预算
+    total = (
+        settings.system_prompt_budget + settings.history_message_budget
+        + settings.knowledge_context_budget + settings.response_reserved_tokens
     )
-    if total_allocated > 65536:  # DeepSeek 64K 上下文
-        warnings.append(
-            f"Token 预算总和 ({total_allocated}) 超过 DeepSeek 64K 上下文限制，"
-            "LLM 调用可能被截断"
-        )
+    if total > 65536:
+        warnings.append(f"Token 预算总和 ({total}) 超过 DeepSeek 64K 上下文限制")
 
     return warnings, errors

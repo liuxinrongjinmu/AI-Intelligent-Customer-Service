@@ -158,6 +158,77 @@ class TestAccountQueryNode:
         assert "APP" in result["final_answer"] or "收货地址" in result["final_answer"]
 
 
+class TestProductQueryNode:
+    """商品查询节点测试 — mock 目标模块: backend.agent.domains.product"""
+
+    @pytest.mark.asyncio
+    @patch("backend.agent.domains.product.call_and_log", new_callable=AsyncMock)
+    async def test_product_query_success(self, mock_call):
+        """商品 API 查询成功返回格式化结果"""
+        from backend.agent.nodes import product_query_node
+        mock_call.return_value = {"success": True, "data": {"productName": "测试商品"}, "total": 1}
+        with patch("backend.agent.domains.product.format_product_result", return_value="测试商品 ¥99"):
+            result = await product_query_node(_make_state(intent="product_query"))
+            assert "final_answer" in result
+
+    @pytest.mark.asyncio
+    @patch("backend.agent.domains.product.call_and_log", new_callable=AsyncMock)
+    async def test_product_api_unavailable_fallback(self, mock_call):
+        """商品 API 未配置时回退到知识库检索"""
+        from backend.agent.nodes import product_query_node
+        mock_call.return_value = {"success": False, "message": "暂未配置"}
+        with patch("backend.agent.domains.product.hybrid_search", return_value=[
+            {"content": "商品知识", "score": 0.9, "source_id": "doc1", "kb_type": "product"}
+        ]):
+            with patch("backend.agent.domains.product.safe_llm_stream", new_callable=AsyncMock) as mock_stream:
+                with patch("backend.agent.domains.product.get_generate_llm"):
+                    mock_stream.return_value = "根据知识库，这是商品信息"
+                    result = await product_query_node(_make_state(intent="product_query"))
+                    assert "final_answer" in result
+
+    @pytest.mark.asyncio
+    @patch("backend.agent.domains.product.call_and_log", new_callable=AsyncMock)
+    async def test_product_no_result_friendly_message(self, mock_call):
+        """API 和知识库均无结果时返回友好提示"""
+        from backend.agent.nodes import product_query_node
+        mock_call.return_value = {"success": False, "message": "暂未配置"}
+        with patch("backend.agent.domains.product.hybrid_search", return_value=[]):
+            result = await product_query_node(_make_state(
+                intent="product_query",
+                intent_entities={"product_name": "不存在商品"}
+            ))
+            assert "final_answer" in result
+            assert "暂未找到" in result["final_answer"]
+
+
+class TestComplaintNode:
+    """投诉处理节点测试 — mock 目标模块: backend.agent.domains.complaint"""
+
+    @pytest.mark.asyncio
+    @patch("backend.agent.domains.complaint.safe_llm_stream", new_callable=AsyncMock)
+    @patch("backend.agent.domains.complaint.get_generate_llm")
+    async def test_complaint_generates_apology(self, mock_llm_func, mock_stream):
+        """投诉节点返回道歉并转人工"""
+        from backend.agent.nodes import complaint_node
+        mock_stream.return_value = "非常抱歉给您带来不便，已记录您的投诉并转接人工处理。"
+        result = await complaint_node(_make_state(intent="complaint"))
+        assert "final_answer" in result
+        assert len(result["final_answer"]) > 0
+
+    @pytest.mark.asyncio
+    @patch("backend.agent.domains.complaint.safe_llm_stream", new_callable=AsyncMock)
+    @patch("backend.agent.domains.complaint.get_generate_llm")
+    async def test_complaint_with_reason(self, mock_llm_func, mock_stream):
+        """投诉节点处理带原因的投诉"""
+        from backend.agent.nodes import complaint_node
+        mock_stream.return_value = "关于物流延迟的投诉已记录"
+        result = await complaint_node(_make_state(
+            intent="complaint",
+            intent_entities={"reason": "物流延迟"}
+        ))
+        assert "final_answer" in result
+
+
 class TestHumanServiceNode:
     """转人工节点测试 — mock 目标模块: backend.agent.domains.human"""
 

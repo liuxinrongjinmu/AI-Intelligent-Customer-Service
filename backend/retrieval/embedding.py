@@ -98,6 +98,40 @@ def embed_query_cached(query: str) -> list[float]:
     return result
 
 
+async def embed_query_cached_async(query: str) -> list[float]:
+    """
+    embed_query_cached 的异步包装，不阻塞事件循环
+
+    :param query: 查询文本
+    :return: 向量列表
+    """
+    import asyncio
+    return await asyncio.to_thread(embed_query_cached, query)
+
+
+async def embed_documents_async(texts: list[str]) -> list[list[float]]:
+    """
+    批量 embedding 的异步包装，不阻塞事件循环
+
+    :param texts: 文本列表
+    :return: 向量列表的列表
+    """
+    import asyncio
+    model = get_embedding_model()
+    return await asyncio.to_thread(model.embed_documents, texts)
+
+
+def embed_documents_sync(texts: list[str]) -> list[list[float]]:
+    """
+    批量 embedding（同步版本，供 sync_service 等同步调用链使用）
+
+    :param texts: 文本列表
+    :return: 向量列表的列表
+    """
+    model = get_embedding_model()
+    return model.embed_documents(texts)
+
+
 def clear_embed_cache():
     """清空 embedding 缓存"""
     with _embed_cache_lock:

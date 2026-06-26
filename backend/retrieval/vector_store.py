@@ -139,39 +139,50 @@ def _write_worker():
 
     从队列中取出写入任务并执行，串行化所有 ChromaDB 写入操作，
     避免写入锁竞争阻塞用户查询线程。
+    写入失败时自动重试 1 次（ChromaDB 偶发性锁超时可自愈）。
     """
     while True:
         try:
             task = _write_queue.get(timeout=1)
             if task is None:
-                # 哨兵值，退出线程
-                break
+                break  # 哨兵值，退出线程
             op_type, args, result_event, result_container = task
-            try:
-                if op_type == "add":
-                    tenant_id, kb_type, ids, documents, metadatas, embeddings = args
-                    collection = get_collection(tenant_id, kb_type)
-                    collection.add(
-                        ids=ids,
-                        documents=documents,
-                        metadatas=metadatas,
-                        embeddings=embeddings
-                    )
-                elif op_type == "delete":
-                    tenant_id, kb_type, ids = args
-                    collection = get_collection(tenant_id, kb_type)
-                    collection.delete(ids=ids)
-                elif op_type == "clear":
-                    tenant_id, kb_type = args
-                    clear_collection(tenant_id, kb_type)
-                result_container["status"] = "ok"
-            except Exception as e:
-                logger.error(f"ChromaDB 异步写入失败: op={op_type}, error={e}")
+
+            last_error = None
+            for attempt in range(2):  # 最多 2 次尝试
+                try:
+                    if op_type == "add":
+                        tenant_id, kb_type, ids, documents, metadatas, embeddings = args
+                        collection = get_collection(tenant_id, kb_type)
+                        collection.add(
+                            ids=ids, documents=documents,
+                            metadatas=metadatas, embeddings=embeddings
+                        )
+                    elif op_type == "delete":
+                        tenant_id, kb_type, ids = args
+                        collection = get_collection(tenant_id, kb_type)
+                        collection.delete(ids=ids)
+                    elif op_type == "clear":
+                        tenant_id, kb_type = args
+                        clear_collection(tenant_id, kb_type)
+                    result_container["status"] = "ok"
+                    last_error = None
+                    break
+                except Exception as e:
+                    last_error = e
+                    if attempt == 0:
+                        logger.warning(
+                            f"ChromaDB 写入失败(第1次), 准备重试: op={op_type}, error={e}"
+                        )
+                        import time as _time
+                        _time.sleep(0.5)
+
+            if last_error is not None:
+                logger.error(f"ChromaDB 异步写入最终失败: op={op_type}, error={last_error}")
                 result_container["status"] = "error"
-                result_container["error"] = e
-            finally:
-                if result_event:
-                    result_event.set()
+                result_container["error"] = last_error
+            if result_event:
+                result_event.set()
         except queue.Empty:
             continue
 

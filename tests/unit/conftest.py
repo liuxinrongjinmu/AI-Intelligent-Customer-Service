@@ -123,6 +123,20 @@ def db_with_seed(db_session):
     yield db_session
 
 
+# ─── 检查 psycopg（libpq）可用性 ────────────────────────────────────────────
+
+def _has_psycopg() -> bool:
+    """检查 libpq 系统库是否可用（macOS 默认未安装）"""
+    try:
+        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+_HAS_LIBPQ = _has_psycopg()
+
+
 # ─── FastAPI TestApp fixture ─────────────────────────────────────────────
 
 def _create_test_app(db: Session) -> FastAPI:
@@ -174,9 +188,10 @@ def _create_test_app(db: Session) -> FastAPI:
 def client(db_session):
     """
     FastAPI TestClient（空数据库）
-
-    :yield: TestClient 实例
+    当系统缺少 libpq 时自动跳过
     """
+    if not _HAS_LIBPQ:
+        pytest.skip("libpq 系统库不可用（安装: brew install postgresql）")
     app = _create_test_app(db_session)
     yield TestClient(app)
 
@@ -185,8 +200,9 @@ def client(db_session):
 def client_with_seed(db_with_seed):
     """
     FastAPI TestClient（预填充租户和会话数据）
-
-    :yield: TestClient 实例
+    当系统缺少 libpq 时自动跳过
     """
+    if not _HAS_LIBPQ:
+        pytest.skip("libpq 系统库不可用（安装: brew install postgresql）")
     app = _create_test_app(db_with_seed)
     yield TestClient(app)

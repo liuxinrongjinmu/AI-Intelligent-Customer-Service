@@ -17,7 +17,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from backend.database import init_db
-from backend.config import HOST, PORT, validate_config, SWAGGER_SERVER_URL, ENV
+from backend.config import HOST, PORT, validate_config, SWAGGER_SERVER_URL, ENV, ENABLE_DOCS, ALLOWED_ORIGINS
 from backend.utils.json_logger import setup_logging
 
 # 请求体大小限制（防护大请求攻击）
@@ -151,7 +151,7 @@ async def lifespan(app: FastAPI):
 
 
 # 生产环境强制关闭 API 文档
-_docs_enabled = os.getenv("ENABLE_DOCS", "1") == "1" and ENV != "prod"
+_docs_enabled = ENABLE_DOCS and ENV != "prod"
 docs_url = "/docs" if _docs_enabled else None
 redoc_url = "/redoc" if _docs_enabled else None
 
@@ -169,18 +169,16 @@ app = FastAPI(
     servers=_servers,
 )
 
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",")
-# 过滤空字符串
-ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS if o.strip()] or ["*"]
+_allowed_origins_list = [o.strip() for o in ALLOWED_ORIGINS.split(",") if o.strip()] or ["*"]
 # CORS 安全：当 origins=["*"] 时，浏览器规范禁止 allow_credentials=True
-if ALLOWED_ORIGINS == ["*"]:
+if _allowed_origins_list == ["*"]:
     logger.warning("CORS 允许所有来源（*），生产环境请配置 ALLOWED_ORIGINS 为具体域名")
     _cors_allow_credentials = False
 else:
     _cors_allow_credentials = True
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=_allowed_origins_list,
     allow_credentials=_cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],

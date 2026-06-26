@@ -24,8 +24,10 @@ ENV PYTHONDONTWRITEBYTECODE=1
 # 先复制依赖文件，利用 Docker 缓存层
 COPY requirements-lock.txt .
 
-# 安装依赖：--no-cache-dir 不缓存 pip 下载
-RUN pip install --no-cache-dir -r requirements-lock.txt \
+# 强制安装 CPU-only PyTorch（先于其他依赖，防止 CUDA 版被依赖解析引入）
+# 这样 pip 解析 requirements-lock.txt 中的 torch 时发现已安装，不会重新拉取 CUDA 版
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r requirements-lock.txt \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
     --no-compile
 

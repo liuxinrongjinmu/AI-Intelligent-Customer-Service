@@ -113,29 +113,29 @@ class TestUserProfileService:
 class TestSyncService:
     """知识同步服务测试"""
 
-    @patch("backend.services.sync_service.get_embedding_model")
+    @pytest.mark.asyncio
+    @patch("backend.services.sync_service.embed_documents_async", new_callable=AsyncMock)
     @patch("backend.services.sync_service.add_to_collection_sync")
     @patch("backend.services.sync_service.get_collection")
-    def test_process_sync_empty_items(self, mock_get_coll, mock_add, mock_embed):
+    async def test_process_sync_empty_items(self, mock_get_coll, mock_add, mock_embed):
         """空 items 同步返回 0"""
         from backend.services.sync_service import process_sync
-        result = process_sync(tenant_id="t1", kb_type="faq", sync_type="incremental", items=[])
+        result = await process_sync(tenant_id="t1", kb_type="faq", sync_type="incremental", items=[])
         assert result["processed_count"] == 0
 
-    @patch("backend.services.sync_service.get_embedding_model")
+    @pytest.mark.asyncio
+    @patch("backend.services.sync_service.embed_documents_async", new_callable=AsyncMock)
     @patch("backend.services.sync_service.add_to_collection_sync")
     @patch("backend.services.sync_service.get_collection")
     @patch("backend.services.sync_service.chunk_items", return_value=[{"id": "1", "content": "测试", "metadata": {}}])
-    def test_process_sync_single_item(self, mock_chunk, mock_get_coll, mock_add, mock_embed):
+    async def test_process_sync_single_item(self, mock_chunk, mock_get_coll, mock_add, mock_embed):
         """单条同步成功"""
         from backend.services.sync_service import process_sync
-        mock_model = MagicMock()
-        mock_model.embed_documents.return_value = [[0.1] * 128]
-        mock_embed.return_value = mock_model
+        mock_embed.return_value = [[0.1] * 128]
         mock_get_coll.return_value = MagicMock(get=MagicMock(return_value={"ids": []}))
         with patch("backend.knowledge.sync_log.record_sync_log"), \
              patch("backend.services.sync_service._persist_relational_records"):
-            result = process_sync(
+            result = await process_sync(
                 tenant_id="t1", kb_type="faq", sync_type="incremental",
                 items=[{"id": "1", "content": "测试", "metadata": {}}]
             )

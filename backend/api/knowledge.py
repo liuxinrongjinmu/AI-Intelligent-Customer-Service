@@ -96,7 +96,7 @@ def sync_knowledge(
 
     items_dict = [item.model_dump() for item in (body.items or [])]
 
-    result = process_sync(
+    result = await process_sync(
         tenant_id=tenant_id,
         kb_type=kb_type,
         sync_type=sync_type,
@@ -154,7 +154,7 @@ def sync_knowledge_batch(
 
     items_dict = [item.model_dump() for item in (body.add or [])]
 
-    result = process_batch(
+    result = await process_batch(
         tenant_id=tenant_id,
         kb_type=kb_type,
         items=items_dict,
@@ -264,7 +264,7 @@ def rollback_knowledge(
         )
 
     # 使用快照数据重新全量同步
-    result = process_sync(
+    result = await process_sync(
         tenant_id=tenant_id,
         kb_type=kb_type,
         sync_type="rollback",
