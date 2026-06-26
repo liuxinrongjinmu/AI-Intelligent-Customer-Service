@@ -56,7 +56,6 @@ Dockerfile
 docker-compose.yml
 .dockerignore
 
-# 开发工具配置（requirements-lock.txt 需要保留，Dockerfile 中 COPY 使用）
-requirements.txt
+# 开发工具配置（requirements.txt 和 requirements-lock.txt 均由 Dockerfile COPY 使用）
 ruff.toml
 pyproject.toml

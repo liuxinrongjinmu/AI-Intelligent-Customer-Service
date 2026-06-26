@@ -22,12 +22,12 @@ ENV PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
 ENV PYTHONDONTWRITEBYTECODE=1
 
 # 先复制依赖文件，利用 Docker 缓存层
-COPY requirements-lock.txt .
+COPY requirements.txt requirements-lock.txt ./
 
 # 强制安装 CPU-only PyTorch（先于其他依赖，防止 CUDA 版被依赖解析引入）
-# 这样 pip 解析 requirements-lock.txt 中的 torch 时发现已安装，不会重新拉取 CUDA 版
+# 然后按 requirements.txt 版本范围安装其余依赖（比 lock 文件更健壮，自动适配镜像源可用版本）
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir -r requirements-lock.txt \
+    pip install --no-cache-dir -r requirements.txt \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
     --no-compile
 
