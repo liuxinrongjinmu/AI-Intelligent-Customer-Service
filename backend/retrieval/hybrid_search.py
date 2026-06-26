@@ -277,6 +277,8 @@ def hybrid_search(
         kb_types = ALL_KB_TYPES
 
     # ==================== 向量路：语义检索 ====================
+    # 注意：embed_query_cached 是同步调用。hybrid_search 在上层通过
+    # asyncio.to_thread() 在独立线程池中调用，因此不会阻塞事件循环。
     query_embedding = embed_query_cached(query)
 
     all_docs = []

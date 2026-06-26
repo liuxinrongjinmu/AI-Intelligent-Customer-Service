@@ -58,22 +58,27 @@ async def human_service_node(state: AgentState) -> dict:
         logger.error(f"创建转人工工单超时: tenant={tenant_id}, thread={thread_id}")
         return {"final_answer": "抱歉，转人工服务暂时不可用，请稍后重试或拨打客服热线。"}
 
-    # 更新会话状态为"人工接待中"
-    try:
-        from backend.database import SessionLocal
-        from backend.models.conversation import Conversation
-        with SessionLocal() as db:
-            conv = db.query(Conversation).filter_by(thread_id=thread_id).first()
-            if conv and conv.status == "ai_serving":
-                conv.transfer_to_human(
-                    priority=5,
-                    summary=history[:500],
-                    tags=["转人工", reason],
-                )
-                db.commit()
-                logger.info(f"会话状态已更新为 human_serving: thread={thread_id}")
-    except Exception as e:
-        logger.warning(f"更新会话状态失败(不影响主流程): {e}")
+    # 更新会话状态为"人工接待中"（失败重试 1 次，写库失败不阻塞转人工回复）
+    for attempt in range(2):
+        try:
+            from backend.database import SessionLocal
+            from backend.models.conversation import Conversation
+            with SessionLocal() as db:
+                conv = db.query(Conversation).filter_by(thread_id=thread_id).first()
+                if conv and conv.status == "ai_serving":
+                    conv.transfer_to_human(
+                        priority=5, summary=history[:500],
+                        tags=["转人工", reason],
+                    )
+                    db.commit()
+                    logger.info(f"会话状态已更新为 human_serving: thread={thread_id}")
+            break
+        except Exception as e:
+            if attempt == 0:
+                logger.warning(f"更新会话状态失败(第1次), 准备重试: {e}")
+                await asyncio.sleep(0.5)
+            else:
+                logger.error(f"更新会话状态最终失败: {e}")
 
     record_handoff()
 

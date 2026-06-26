@@ -150,6 +150,8 @@ def _write_worker():
 
             last_error = None
             for attempt in range(2):  # 最多 2 次尝试
+                # 重试延迟用 time.sleep（非 asyncio.sleep）：
+                # 此函数在独立后台线程中运行，不涉及 asyncio 事件循环
                 try:
                     if op_type == "add":
                         tenant_id, kb_type, ids, documents, metadatas, embeddings = args

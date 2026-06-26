@@ -50,6 +50,8 @@ class InstanceCircuitBreaker:
         self._state: dict[str, str] = {}                # 实例 → 断路器状态
         self._open_since: dict[str, float] = {}         # 实例 → 熔断开始时间
         self._half_open_count: dict[str, int] = {}      # 实例 → 半开探测次数
+        # 启动冷却期：服务刚启动时 Nacos 注册可能尚未生效，短暂冷却避免无效失败计数
+        self._startup_deadline: float = time.time() + 10.0
 
     def is_available(self, instance_key: str) -> bool:
         """
@@ -90,7 +92,12 @@ class InstanceCircuitBreaker:
             logger.info(f"断路器恢复: {instance_key}")
 
     def record_failure(self, instance_key: str):
-        """记录请求失败，可能触发熔断"""
+        """记录请求失败，可能触发熔断（启动冷却期内不计入失败）"""
+        # 启动冷却期：服务刚启动时 Nacos 可能尚未生效，失败不计入
+        if time.time() < self._startup_deadline:
+            logger.debug(f"启动冷却期内忽略失败: {instance_key}")
+            return
+
         count = self._failure_count.get(instance_key, 0) + 1
         self._failure_count[instance_key] = count
 

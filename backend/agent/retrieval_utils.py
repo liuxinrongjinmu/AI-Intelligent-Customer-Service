@@ -54,17 +54,20 @@ def reciprocal_rank_fusion(
     rrf_scores: dict[str, tuple[float, dict]] = {}
     for group in result_groups:
         for rank, doc in enumerate(group):
+            kb_type = doc.get("kb_type", "")
             doc_id = doc.get("source_id", "") or doc.get("content", "")
             if not doc_id:
                 doc_id = doc.get("content", "")[:80]
+            # 加 kb_type 前缀避免不同知识库中内容相似的文档去重冲突
+            dedup_key = f"{kb_type}:{doc_id}" if kb_type else doc_id
             rrf_score = 1.0 / (k + rank + 1)
-            if doc_id in rrf_scores:
-                rrf_scores[doc_id] = (
-                    rrf_scores[doc_id][0] + rrf_score,
-                    rrf_scores[doc_id][1]
+            if dedup_key in rrf_scores:
+                rrf_scores[dedup_key] = (
+                    rrf_scores[dedup_key][0] + rrf_score,
+                    rrf_scores[dedup_key][1]
                 )
             else:
-                rrf_scores[doc_id] = (rrf_score, doc)
+                rrf_scores[dedup_key] = (rrf_score, doc)
     sorted_docs = sorted(rrf_scores.values(), key=lambda x: x[0], reverse=True)
     return [doc for _, doc in sorted_docs[:top_k]]
 

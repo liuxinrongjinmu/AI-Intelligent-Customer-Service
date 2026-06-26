@@ -143,7 +143,8 @@ async def chat_stream(
         content=message,
     )
     db.add(user_msg)
-    db.commit()
+    # 暂不提交：用户消息与 AI 回复在 SSE 完成后一起 commit，保证原子性
+    db.flush()
 
     record_chat_message()
 

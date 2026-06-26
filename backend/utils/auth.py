@@ -87,12 +87,13 @@ async def verify_admin_key(request: Request) -> str:
     :raises HTTPException: 认证失败
     """
     api_key = request.headers.get("X-Admin-Key", "")
-    if not api_key or not ADMIN_API_KEY:
+    # 区分"未配置"与"密钥错误"，避免混淆运维排查
+    if not ADMIN_API_KEY or ADMIN_API_KEY == "change-me-admin-key":
         raise HTTPException(
-            status_code=403,
-            detail={"code": "AUTH_FAILED", "message": "无效的 Admin API Key"}
+            status_code=500,
+            detail={"code": "ADMIN_NOT_CONFIGURED", "message": "管理接口未配置，请设置 ADMIN_API_KEY"}
         )
-    if not hmac.compare_digest(api_key, ADMIN_API_KEY):
+    if not api_key or not hmac.compare_digest(api_key, ADMIN_API_KEY):
         raise HTTPException(
             status_code=403,
             detail={"code": "AUTH_FAILED", "message": "无效的 Admin API Key"}

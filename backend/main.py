@@ -74,6 +74,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         except Exception:
             latency_ms = (time.time() - start) * 1000
             record_request(request.method, request.url.path, 500, latency_ms)
+            logger.warning(f"请求异常: {request.method} {request.url.path}", exc_info=True)
             raise
         finally:
             decrement_active()

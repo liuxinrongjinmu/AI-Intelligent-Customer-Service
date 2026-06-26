@@ -100,12 +100,12 @@ def _get_client_ip(request: Request, trusted_proxy: bool = False) -> str:
     :return: 客户端 IP 地址
     """
     if trusted_proxy:
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip.split(",")[0].strip()
-        forwarded_for = request.headers.get("X-Forwarded-For")
-        if forwarded_for:
-            return forwarded_for.split(",")[0].strip()
+        x_real_ip = request.headers.get("X-Real-IP")
+        if x_real_ip:
+            return x_real_ip.split(",")[0].strip()
+        x_forwarded_for = request.headers.get("X-Forwarded-For")
+        if x_forwarded_for:
+            return x_forwarded_for.split(",")[0].strip()
 
     # 默认使用 TCP 对端 IP（不可伪造）
     if request.client:

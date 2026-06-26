@@ -14,18 +14,31 @@ from backend.agent.prompts import CLASSIFY_SYSTEM_PROMPT, CLASSIFY_USER_PROMPT
 from backend.agent.llm_utils import safe_llm_invoke, get_classify_llm
 from backend.agent.retrieval_utils import format_history
 from backend.utils.response_cache import get_cached_intent, set_cached_intent
-from backend.utils.metrics import record_llm_call, record_cache, record_request_timing
+from backend.utils.metrics import record_cache, record_request_timing
 from backend.utils.token_budget import estimate_tokens
 from backend.retrieval.hybrid_search import ALL_KB_TYPES
 
 logger = logging.getLogger(__name__)
+
+# 子类标准化映射表：LLM 可能返回非标准子类名，统一映射到标准值
+_SUB_TYPE_NORMALIZE = {
+    ("human_service", "transfer_to_human"): "user_request",
+    ("human_service", "ai_failed"): "ai_limitation",
+}
 
 
 async def classify_intent_node(state: AgentState) -> dict:
     """意图识别节点（含指代消解 + 两层意图分类）"""
     t0 = time.time()
     messages = state["messages"]
-    current_message = (messages[-1].content or "") if messages else ""
+    if not messages:
+        logger.error("classify_intent_node 收到空消息列表，回退到 other")
+        return {
+            "intent": "other", "intent_sub_type": "unknown",
+            "intent_entities": {}, "search_query": "", "coref_resolved": "",
+            "suggested_kb_types": ALL_KB_TYPES, "ai_failed_count": 0,
+        }
+    current_message = messages[-1].content or ""
     tenant_id = state.get("tenant_id", "")
     history = format_history(messages[:-1]) if len(messages) > 1 else "（无历史对话）"
 
@@ -85,10 +98,6 @@ async def classify_intent_node(state: AgentState) -> dict:
         ai_failed_count = 0
 
     # 子类标准化
-    _SUB_TYPE_NORMALIZE = {
-        ("human_service", "transfer_to_human"): "user_request",
-        ("human_service", "ai_failed"): "ai_limitation",
-    }
     normalize_key = (intent, intent_sub_type)
     if normalize_key in _SUB_TYPE_NORMALIZE:
         intent_sub_type = _SUB_TYPE_NORMALIZE[normalize_key]
