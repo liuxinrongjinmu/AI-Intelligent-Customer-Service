@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- CSP 暂用宽松策略，调试完成后收紧 -->
+    <meta http-equiv="Content-Security-Policy" content="default-src *; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src *; img-src * data:;">
     <title>{% block title %}聚宝赞AI客服{% endblock %}</title>
     <link rel="stylesheet" href="/static/css/style.css">
     {% block extra_head %}{% endblock %}
