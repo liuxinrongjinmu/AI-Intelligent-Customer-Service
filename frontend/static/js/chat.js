@@ -241,7 +241,7 @@
                             succeeded = true;
                             if (event.session_id) {
                                 sessionId = event.session_id;
-                                saveSessionId(, sessionId);
+                                saveSessionId(sessionId);
                             }
                             // 成功完成后移除重试按钮
                             if (messageDiv) {
@@ -316,7 +316,7 @@
         // 确保 session_id 存在（首次对话自动生成）
         if (!sessionId) {
             sessionId = generateSessionId();
-            saveSessionId(, sessionId);
+            saveSessionId(sessionId);
         }
 
         isStreaming = true;
@@ -353,7 +353,7 @@
     newSessionBtn.addEventListener('click', function() {
         // 生成新的 session_id 即为新会话
         sessionId = generateSessionId();
-        saveSessionId(, sessionId);
+        saveSessionId(sessionId);
         chatArea.innerHTML = '';
         if (statusText) statusText.textContent = '';
         hasReceivedAIReply = false;
