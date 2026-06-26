@@ -74,7 +74,7 @@ NACOS_GROUP: str = os.getenv("NACOS_GROUP", "DEFAULT_GROUP")
 NACOS_USERNAME: str = os.getenv("NACOS_USERNAME", "")
 NACOS_PASSWORD: str = os.getenv("NACOS_PASSWORD", "")
 # 我方服务注册信息
-SERVICE_IP: str = os.getenv("SERVICE_IP", "")  # 留空则自动获取本机 IP
+SERVICE_IP: str = os.getenv("SERVICE_IP", "")  # 留空则自动获取本机 IP；支持逗号分隔注册多个 IP
 SERVICE_PORT: int = int(os.getenv("SERVICE_PORT", str(PORT)))
 
 # ==================== 聚宝赞业务 API 超时配置 ====================
