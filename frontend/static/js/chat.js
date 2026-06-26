@@ -6,7 +6,12 @@
  * - session_id 不存在 → 自动创建新会话
  */
 (function() {
+    // 调试：在页面显示 JS 加载状态
+    var debugEl = document.getElementById('statusText');
+    if (debugEl) { debugEl.textContent = 'JS已加载'; debugEl.style.color = 'green'; }
+
     const TID = document.querySelector('meta[name="tenant-id"]')?.content || '';
+    if (!TID && debugEl) { debugEl.textContent = '错误: 未找到租户ID'; debugEl.style.color = 'red'; return; }
 
     // 安全访问 localStorage（隐私模式/无痕浏览可能不可用）
     let sessionId = '';
@@ -302,8 +307,11 @@
     }
 
     async function sendMessage() {
+        // 调试：点击发送时显示状态
+        if (statusText) { statusText.textContent = '正在发送...'; statusText.style.color = '#333'; }
         const message = messageInput.value.trim();
-        if (!message || isStreaming) return;
+        if (!message) { if (statusText) { statusText.textContent = '输入为空'; statusText.style.color = 'red'; } return; }
+        if (isStreaming) { if (statusText) { statusText.textContent = '正在回复中...'; statusText.style.color = 'orange'; } return; }
 
         // 确保 session_id 存在（首次对话自动生成）
         if (!sessionId) {
