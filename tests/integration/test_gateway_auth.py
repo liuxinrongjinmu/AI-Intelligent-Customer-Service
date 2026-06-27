@@ -16,7 +16,7 @@ import httpx
 import pytest
 
 SKIP = os.getenv("SKIP_E2E", "").lower() == "true"
-BASE_URL = os.getenv("TEST_BASE_URL", "http://localhost:8080")
+BASE_URL = os.getenv("TEST_BASE_URL", "http://localhost:8720")
 
 
 @pytest.mark.skipif(SKIP, reason="SKIP_E2E=true，跳过集成测试")

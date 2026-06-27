@@ -5,12 +5,12 @@
 1. OrderDetailsVO.expressList — 查询订单时已附带物流轨迹（优先使用）
 2. POST /api/v1/ext-merchant/logistics — 单独查询物流（expressList 为空时回退）
 
-expressList 条目结构：
+expressList 条目结构（ExpressInfoVO，字段名待联调确认）：
 {
-  "courierCompany": str,   // 快递公司
-  "trackingNo": str,       // 运单号
+  "name": str,             // 快递公司名
+  "no": str,               // 运单号
   "status": str,           // 物流状态
-  "trailList": [...]       // 物流详情（时间、地点、描述）
+  "trailList": [...]       // 物流详情（ExpressTrailVO，含 content/time/action/location）
 }
 """
 import logging

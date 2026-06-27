@@ -19,6 +19,10 @@ VO 定义（tenant-api/vo/external/order/OrderDetailsVO）：
 }
 
 调用链路：merchant-service → buyer-service → tenant-service → ExtMerchantFeignClient
+
+注意：Swagger 定义 OrderDetailsVO 含嵌套 fullOrderInfo，但实际 API 响应结构需联调确认。
+当前 format_order_result 按扁平字段读取（data.title 而非 data.fullOrderInfo.title），
+若联调发现响应为嵌套结构，需调整为 data.fullOrderInfo.title。
 """
 import logging
 import httpx

@@ -64,3 +64,25 @@ class TestConfigValidation:
 
         warnings, errors = config_module.validate_config()
         assert errors == []
+
+    def test_jwt_secret_missing_in_jwt_mode_returns_warning(self, monkeypatch):
+        """JWT 模式下 JWT_SECRET 未配置时返回 warnings"""
+        monkeypatch.setattr(config_module.settings, "deepseek_api_key", "sk-valid-key")
+        monkeypatch.setattr(config_module.settings, "admin_api_key", "valid-admin-key")
+        monkeypatch.setattr(config_module.settings, "gateway_ip_whitelist", "10.0.0.0/8")
+        monkeypatch.setattr(config_module.settings, "gateway_auth_mode", "jwt")
+        monkeypatch.setattr(config_module, "_JWT_SECRET_RESOLVED", "")
+
+        warnings, errors = config_module.validate_config()
+        assert any("JWT_SECRET 未配置" in w for w in warnings)
+
+    def test_jwt_secret_configured_no_warning(self, monkeypatch):
+        """JWT_SECRET 已配置时不返回相关 warnings"""
+        monkeypatch.setattr(config_module.settings, "deepseek_api_key", "sk-valid-key")
+        monkeypatch.setattr(config_module.settings, "admin_api_key", "valid-admin-key")
+        monkeypatch.setattr(config_module.settings, "gateway_ip_whitelist", "10.0.0.0/8")
+        monkeypatch.setattr(config_module.settings, "gateway_auth_mode", "jwt")
+        monkeypatch.setattr(config_module, "_JWT_SECRET_RESOLVED", "valid-jwt-secret-key")
+
+        warnings, errors = config_module.validate_config()
+        assert not any("JWT_SECRET" in w for w in warnings)

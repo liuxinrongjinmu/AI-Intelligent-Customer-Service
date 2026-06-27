@@ -7,7 +7,7 @@
   - MRR（Mean Reciprocal Rank）：第一个期望文档的倒数排名均值
 
 使用方法：
-  python _eval_retrieval.py
+  python -m tests.eval.eval_retrieval
 """
 import sys
 import os
