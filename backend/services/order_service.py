@@ -34,9 +34,9 @@ from backend.utils.helpers import resolve_tenant_id
 
 logger = logging.getLogger(__name__)
 
-# 聚宝赞 merchant-service 订单 API（实际路径，来自 Swagger /v3/api-docs）
-ORDER_QUERY_PATH = "/api/v1/orders/query"
-ORDER_SEARCH_PATH = "/api/v1/orders/search"
+# 聚宝赞 tenant-service 商家外部API 订单（来自 Swagger /v3/api-docs @ 8131）
+ORDER_DETAILS_PATH = "/api/v1/ext-merchant/order-details"
+ORDER_LIST_PATH = "/api/v1/ext-merchant/order-list"
 
 
 @retry_on_transient_error(max_retries=2)
@@ -44,9 +44,9 @@ async def _do_query_order(tenant_id: str, order_no: str) -> dict[str, Any]:
     """
     执行订单详情查询 HTTP 请求（含重试）
 
-    POST /api/v1/orders/query
+    POST /api/v1/ext-merchant/order-details
     请求: OrderDetailQueryDTO {orderNo, tenantId}
-    响应: ResultOrderDetailVO {code, data: OrderDetailVO, ...}
+    响应: ResultOrderDetailsVO {code, data: OrderDetailsVO, success}
 
     :param tenant_id: 租户ID
     :param order_no: 订单号
@@ -58,7 +58,7 @@ async def _do_query_order(tenant_id: str, order_no: str) -> dict[str, Any]:
     response = await nacos_request(
         "POST",
         service_name=ORDER_SERVICE_NAME,
-        path=ORDER_QUERY_PATH,
+        path=ORDER_DETAILS_PATH,
         json_data=body,
         headers=headers,
         timeout=httpx.Timeout(ORDER_API_TIMEOUT),

@@ -33,8 +33,8 @@ from backend.utils.helpers import resolve_tenant_id
 
 logger = logging.getLogger(__name__)
 
-PRODUCT_DETAILS_PATH = "/api/v1/ext-merchant/product-details"  # 待确认：merchant-service 未暴露此路径，当前走知识库降级
-PRODUCT_SEARCH_PATH = "/api/v1/ext-merchant/product-search"    # 待确认
+PRODUCT_DETAILS_PATH = "/api/v1/ext-merchant/product-details"
+PRODUCT_SEARCH_PATH = "/api/v1/ext-merchant/product-search"
 
 
 @retry_on_transient_error(max_retries=2)
