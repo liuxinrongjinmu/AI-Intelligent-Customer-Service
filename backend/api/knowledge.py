@@ -1,16 +1,14 @@
 """
 知识库同步 API — 接收聚宝赞系统推送的知识库数据
 
-认证方式: 内网 VPN + Gateway 网关认证（校验 X-Gateway-Verified 头 + IP 白名单）
-
-设计说明：
-  聚宝赞端将单次批量操作控制在 10 条左右，因此接口直接实时处理并返回结果，
-  不再使用异步 task_id + 轮询模式。
+认证方式: JWT Bearer Token 或 Gateway 静态令牌（GATEWAY_AUTH_MODE=both）
 
 接口列表：
-  POST   /sync/{tenant_id}/{kb_type}          全量/增量同步（实时）
-  POST   /sync/{tenant_id}/{kb_type}/batch    批量增删操作（实时，支持单条删除）
-  DELETE /sync/{tenant_id}/{kb_type}          清空知识库（实时）
+  POST   /sync/{tenant_id}/{kb_type}          全量/增量同步
+  POST   /sync/{tenant_id}/{kb_type}/batch    批量增删（支持单条删除）
+  DELETE /sync/{tenant_id}/{kb_type}          清空知识库
+  GET    /sync/{tenant_id}/history            同步历史
+  POST   /sync/{tenant_id}/{kb_type}/rollback 回滚到上次快照
 """
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Query
