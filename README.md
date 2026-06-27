@@ -341,7 +341,6 @@ curl -X POST http://localhost:8081/api/v1/chat/demo_001/stream \
 |------|------|------|
 | GET | `/api/v1/system/health` | 健康检查 |
 | GET | `/api/v1/system/metrics` | Prometheus 运行指标 |
-| GET | `/api/v1/system/stats` | 对话统计 |
 
 ### 租户管理
 
