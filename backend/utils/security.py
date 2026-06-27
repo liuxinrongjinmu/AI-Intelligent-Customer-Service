@@ -2,7 +2,6 @@
 安全防护模块：Prompt 注入检测 + 输出过滤 + 敏感词审核
 """
 import logging
-import os
 import re as _re
 import unicodedata
 from pathlib import Path

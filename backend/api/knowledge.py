@@ -69,7 +69,7 @@ async def sync_knowledge(
 
     示例请求：
     POST /api/v1/knowledge/sync/shop_001/product
-    Header: X-Gateway-Verified: true
+    Header: Authorization: Bearer <JWT>
     {
       "sync_type": "full",
       "items": [

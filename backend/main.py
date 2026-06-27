@@ -32,7 +32,6 @@ from backend.utils.metrics import mark_request_start, record_request, increment_
 from backend.middleware.http_client import RateLimitMiddleware, close_shared_client
 from backend.agent.graph import close_agent
 
-import os
 
 # 根据环境配置日志格式（生产环境 JSON，开发环境文本）
 setup_logging(ENV)
