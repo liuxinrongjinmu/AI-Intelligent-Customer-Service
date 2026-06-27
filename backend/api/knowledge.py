@@ -222,8 +222,7 @@ async def get_sync_history(
     :param kb_type: 知识库类型（可选，为空返回所有类型）
     :param limit: 返回条数
     """
-    if kb_type != "public":
-        _validate_tenant(tenant_id, db)
+    _validate_tenant(tenant_id, db)
     from backend.knowledge.sync_log import get_sync_history
     history = get_sync_history(tenant_id, kb_type, limit)
     return {"success": True, "tenant_id": tenant_id, "history": history}

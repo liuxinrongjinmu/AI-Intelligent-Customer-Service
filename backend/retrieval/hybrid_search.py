@@ -263,7 +263,7 @@ def hybrid_search(
 
     :param query: 用户问题
     :param tenant_id: 租户ID
-    :param kb_types: 要检索的知识库类型列表，默认全部（faq/product/rule/public）
+    :param kb_types: 要检索的知识库类型列表，默认全部（faq/product/rule）
     :param keywords: 意图关键词列表（为空时仅走向量路）
     :param top_k: 返回文档数
     :param relevance_threshold: 最低相关性阈值（仅过滤向量路结果）
