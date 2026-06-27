@@ -30,7 +30,7 @@ async def _do_query_user_profile(tenant_id: str, user_id: str) -> dict[str, Any]
     :param user_id: 用户ID
     :return: API 响应 JSON
     """
-    body: dict[str, Any] = {"tenantId": resolve_tenant_id(tenant_id), "userId": user_id}
+    body: dict[str, Any] = {"tenantId": resolve_tenant_id(tenant_id), "thirdUserId": user_id}
     headers = {"Content-Type": "application/json"}
 
     response = await nacos_request(

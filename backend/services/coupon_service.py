@@ -91,7 +91,7 @@ async def query_coupon(
             "endTime": end_time,
         }
         if user_id:
-            body["buyerId"] = user_id
+            body["thirdUserId"] = user_id
         if status:
             body["status"] = status
 
