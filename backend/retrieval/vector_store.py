@@ -62,7 +62,7 @@ def get_collection(tenant_id: str, kb_type: str = "faq") -> chromadb.Collection:
     获取指定租户和知识库类型的 ChromaDB collection
 
     :param tenant_id: 租户ID
-    :param kb_type: 知识库类型（faq/product/rule/public）
+    :param kb_type: 知识库类型（faq/product/rule）
     """
     client = _get_client()
     name = _collection_name(tenant_id, kb_type)
