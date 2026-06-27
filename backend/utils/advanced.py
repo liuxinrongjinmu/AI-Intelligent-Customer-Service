@@ -4,11 +4,8 @@
 兜底话术体系（6大类）：
   工具失败 / AI无法理解 / 安全 / 功能限制 / 情绪安抚 / 系统异常
 """
-import logging
 import random
 from typing import Any
-
-logger = logging.getLogger(__name__)
 
 
 FALLBACK_RESPONSES = {

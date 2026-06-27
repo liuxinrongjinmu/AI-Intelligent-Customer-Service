@@ -53,7 +53,7 @@ async def query_user_profile(
 
     请求参数映射 (UserInfoQueryDTO):
     - tenantId: 租户ID
-    - userId [必填]: 用户ID
+    - thirdUserId [必填]: 买家外部ID
 
     :param tenant_id: 租户ID
     :param user_id: 用户ID（必填）

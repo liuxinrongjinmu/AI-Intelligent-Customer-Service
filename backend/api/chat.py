@@ -18,7 +18,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from langchain_core.messages import HumanMessage
 
-from backend.database import get_db, SessionLocal
+from backend.database import get_db
 from backend.models.tenant import Tenant
 from backend.models.conversation import Conversation, Message
 from backend.schemas.chat import ChatRequest, ChatHistoryResponse, ChatHistoryMessage

@@ -8,7 +8,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Column, String, Integer, DateTime, Text, create_engine
+from sqlalchemy import Column, String, Integer, DateTime, Text
 from sqlalchemy.orm import Session
 
 from backend.database import engine, Base

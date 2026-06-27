@@ -2,7 +2,7 @@
 租户管理 API
 """
 from fastapi import APIRouter, Depends, HTTPException
-from backend.database import SessionLocal, get_db
+from backend.database import get_db
 from sqlalchemy.orm import Session
 from backend.models.tenant import Tenant, generate_api_key
 from backend.schemas.tenant import TenantCreate, TenantResponse

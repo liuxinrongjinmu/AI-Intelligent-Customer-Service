@@ -13,7 +13,7 @@ import hmac
 import logging
 from fastapi import Request, HTTPException
 
-from backend.config import ADMIN_API_KEY, GATEWAY_AUTH_MODE
+from backend.config import ADMIN_API_KEY
 from backend.middleware.gateway_auth import verify_request, extract_identity
 
 logger = logging.getLogger(__name__)

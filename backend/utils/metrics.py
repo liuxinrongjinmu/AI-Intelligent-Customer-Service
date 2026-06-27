@@ -8,13 +8,10 @@ Prometheus 指标采集模块
 - 聊天消息计数（Counter）
 - LLM 调用计数（Counter）
 """
-import logging
 import time
 from contextvars import ContextVar
 
 from prometheus_client import Counter, Gauge, Histogram, generate_latest
-
-logger = logging.getLogger(__name__)
 
 # 请求开始时间（ContextVar，用于计算延迟）
 _request_start_time: ContextVar[float] = ContextVar("request_start_time")
@@ -223,15 +220,3 @@ def get_metrics_text() -> str:
     # 更新 uptime gauge
     _uptime_gauge.set(time.time() - _start_time)
     return generate_latest().decode("utf-8")
-
-
-def get_metrics_json() -> dict:
-    """
-    获取 JSON 格式的指标（用于内部监控）
-
-    :return: 指标字典
-    """
-    return {
-        "uptime_seconds": time.time() - _start_time,
-        "note": "使用 Prometheus /metrics 端点获取完整指标，JSON 格式不再提供详细数据",
-    }

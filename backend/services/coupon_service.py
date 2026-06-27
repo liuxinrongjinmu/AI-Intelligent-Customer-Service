@@ -58,9 +58,7 @@ async def query_coupon(
 
     请求参数映射 (CouponListSearchDTO):
     - tenantId: 租户ID
-    - buyerId: 买家ID ← user_id
-    - couponId: 优惠券ID
-    - couponType: 优惠券类型
+    - thirdUserId: 买家外部ID ← user_id
     - page: 分页页码
     - pageSize: 每页数量
     - status: 券状态
@@ -68,7 +66,7 @@ async def query_coupon(
     - endTime [必填]: 结束时间
 
     :param tenant_id: 租户ID
-    :param user_id: 用户ID → buyerId
+    :param user_id: 用户ID → thirdUserId
     :param status: 券状态
     :param start_time: 起始时间（ISO 8601，未提供时默认当前时间往前推1年）
     :param end_time: 结束时间（ISO 8601，未提供时默认当前时间往后推1年）
