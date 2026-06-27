@@ -177,9 +177,27 @@ def upgrade() -> None:
     )
     op.create_index('ix_sync_logs_tenant_id', 'sync_logs', ['tenant_id'])
 
+    # ─── 用户反馈表 ──────────────────────────────────────────
+    op.create_table(
+        'feedbacks',
+        sa.Column('id', sa.String(length=64), nullable=False),
+        sa.Column('tenant_id', sa.String(length=64), nullable=False),
+        sa.Column('conversation_id', sa.String(length=64), nullable=False),
+        sa.Column('thread_id', sa.String(length=64), nullable=False),
+        sa.Column('message_id', sa.String(length=64), nullable=True, server_default=sa.text("''")),
+        sa.Column('rating', sa.Integer(), nullable=False),
+        sa.Column('comment', sa.Text(), nullable=True, server_default=sa.text("''")),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=True, server_default=sa.text('now()')),
+        sa.PrimaryKeyConstraint('id'),
+    )
+    op.create_index('ix_feedbacks_tenant_id', 'feedbacks', ['tenant_id'])
+    op.create_index('ix_feedbacks_conversation_id', 'feedbacks', ['conversation_id'])
+    op.create_index('ix_feedbacks_created_at', 'feedbacks', ['created_at'])
+
 
 def downgrade() -> None:
     """回滚所有表"""
+    op.drop_table('feedbacks')
     op.drop_table('sync_logs')
     op.drop_table('handoff_tickets')
     op.drop_table('documents')

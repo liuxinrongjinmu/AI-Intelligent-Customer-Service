@@ -102,6 +102,7 @@ def init_db():
     此处 create_all 仅用于首次启动或开发环境。
     """
     from backend.models import conversation  # noqa: F401
+    from backend.models import feedback  # noqa: F401
     from backend.models import handoff  # noqa: F401
     from backend.models import knowledge  # noqa: F401
     from backend.models import tenant  # noqa: F401
