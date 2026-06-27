@@ -24,7 +24,7 @@ from backend.models.conversation import Conversation, Message
 from backend.schemas.chat import ChatRequest, ChatHistoryResponse, ChatHistoryMessage
 from backend.agent.graph import get_agent
 from backend.utils.security import validate_message
-from backend.utils.auth import verify_chat_api_key
+from backend.utils.auth import verify_chat_api_key, get_identity_from_request
 from backend.utils.metrics import record_chat_message, record_error
 from backend.utils.request_id import get_request_id
 
@@ -100,6 +100,7 @@ def _locate_or_create_session(
 
 @router.post("/{tenant_id}/stream")
 async def chat_stream(
+    request: Request,
     tenant_id: str,
     body: ChatRequest,
     db: Session = Depends(get_db),
@@ -112,7 +113,15 @@ async def chat_stream(
     - session_id 已存在 → 自动关联历史记录继续对话
     - session_id 不存在 → 自动创建新会话
     """
-    tenant = _get_tenant(tenant_id, db)
+    # 优先从 Gateway Header 提取身份，回退到 URL/请求体
+    identity = get_identity_from_request(request)
+    header_tenant = identity.get("tenant_id", "")
+    header_user_id = identity.get("user_id", "")
+    header_user_name = identity.get("user_name", "")
+
+    # tenant_id: Header > URL path
+    effective_tenant_id = header_tenant or tenant_id
+    tenant = _get_tenant(effective_tenant_id, db)
 
     try:
         message = validate_message(body.message)
@@ -122,10 +131,10 @@ async def chat_stream(
             detail={"code": "INVALID_MESSAGE", "message": str(e)}
         )
 
-    # 会话定位：session_id 存在则关联，不存在则创建
+    # 身份：Header > 请求体 > 默认值
     session_id = body.session_id
-    user_id = body.user_id
-    user_name = body.user_name
+    user_id = header_user_id or body.user_id
+    user_name = header_user_name or body.user_name
     channel = body.channel
 
     conversation = _locate_or_create_session(
@@ -154,7 +163,7 @@ async def chat_stream(
 
     input_state = {
         "messages": [HumanMessage(content=message)],
-        "tenant_id": tenant_id,
+        "tenant_id": effective_tenant_id,
         "tenant_name": tenant.name,
         "user_id": user_id,
         "user_name": user_name,

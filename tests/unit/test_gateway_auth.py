@@ -244,10 +244,11 @@ class TestGatewayAuth:
             client_host="10.0.0.1",
         )
         result = await verify_gateway_request(req)
-        assert result == "gateway_authed"
+        assert result == "static_authed"
 
     @pytest.mark.asyncio
     async def test_wrong_gateway_header_value(self, monkeypatch):
+        monkeypatch.setattr(gateway_auth, "GATEWAY_AUTH_MODE", "static")
         """错误的 Gateway 头值 → 401"""
         monkeypatch.setattr(gateway_auth, "GATEWAY_IP_WHITELIST", "10.0.0.0/8")
         monkeypatch.setattr(gateway_auth, "GATEWAY_VERIFIED_HEADER", "X-Gateway-Verified")
@@ -261,10 +262,11 @@ class TestGatewayAuth:
         with pytest.raises(HTTPException) as exc_info:
             await verify_gateway_request(req)
         assert exc_info.value.status_code == 401
-        assert exc_info.value.detail["code"] == "GATEWAY_AUTH_REQUIRED"
+        assert exc_info.value.detail["code"] == "AUTH_REQUIRED"
 
     @pytest.mark.asyncio
     async def test_missing_gateway_header(self, monkeypatch):
+        monkeypatch.setattr(gateway_auth, "GATEWAY_AUTH_MODE", "static")
         """缺少 Gateway 头 → 401"""
         monkeypatch.setattr(gateway_auth, "GATEWAY_IP_WHITELIST", "10.0.0.0/8")
         monkeypatch.setattr(gateway_auth, "GATEWAY_VERIFIED_HEADER", "X-Gateway-Verified")
@@ -277,7 +279,7 @@ class TestGatewayAuth:
         with pytest.raises(HTTPException) as exc_info:
             await verify_gateway_request(req)
         assert exc_info.value.status_code == 401
-        assert exc_info.value.detail["code"] == "GATEWAY_AUTH_REQUIRED"
+        assert exc_info.value.detail["code"] == "AUTH_REQUIRED"
 
     @pytest.mark.asyncio
     async def test_correct_header_but_ip_not_in_whitelist(self, monkeypatch):
@@ -299,6 +301,7 @@ class TestGatewayAuth:
 
     @pytest.mark.asyncio
     async def test_empty_whitelist_with_correct_header(self, monkeypatch):
+        monkeypatch.setattr(gateway_auth, "GATEWAY_AUTH_MODE", "static")
         """白名单为空 + 正确 Gateway 头 → 401（安全优先，白名单为空拒绝所有）"""
         monkeypatch.setattr(gateway_auth, "GATEWAY_IP_WHITELIST", "")
         monkeypatch.setattr(gateway_auth, "GATEWAY_VERIFIED_HEADER", "X-Gateway-Verified")
@@ -316,6 +319,7 @@ class TestGatewayAuth:
 
     @pytest.mark.asyncio
     async def test_empty_whitelist_without_header(self, monkeypatch):
+        monkeypatch.setattr(gateway_auth, "GATEWAY_AUTH_MODE", "static")
         """白名单为空但缺少 Gateway 头 → 401"""
         monkeypatch.setattr(gateway_auth, "GATEWAY_IP_WHITELIST", "")
         monkeypatch.setattr(gateway_auth, "GATEWAY_VERIFIED_HEADER", "X-Gateway-Verified")
@@ -328,10 +332,11 @@ class TestGatewayAuth:
         with pytest.raises(HTTPException) as exc_info:
             await verify_gateway_request(req)
         assert exc_info.value.status_code == 401
-        assert exc_info.value.detail["code"] == "GATEWAY_AUTH_REQUIRED"
+        assert exc_info.value.detail["code"] == "AUTH_REQUIRED"
 
     @pytest.mark.asyncio
     async def test_gateway_header_case_insensitive(self, monkeypatch):
+        monkeypatch.setattr(gateway_auth, "GATEWAY_AUTH_MODE", "static")
         """Gateway 头值大小写不敏感 → 通过"""
         monkeypatch.setattr(gateway_auth, "GATEWAY_IP_WHITELIST", "10.0.0.0/8")
         monkeypatch.setattr(gateway_auth, "GATEWAY_VERIFIED_HEADER", "X-Gateway-Verified")
@@ -343,7 +348,7 @@ class TestGatewayAuth:
             client_host="10.0.0.1",
         )
         result = await verify_gateway_request(req)
-        assert result == "gateway_authed"
+        assert result == "static_authed"
 
         # 再测混合大小写
         req2 = _make_mock_request(
@@ -351,4 +356,4 @@ class TestGatewayAuth:
             client_host="10.0.0.2",
         )
         result2 = await verify_gateway_request(req2)
-        assert result2 == "gateway_authed"
+        assert result2 == "static_authed"

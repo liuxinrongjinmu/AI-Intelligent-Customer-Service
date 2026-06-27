@@ -1,9 +1,24 @@
 """
-商品查询服务：对接聚宝赞 ext-merchant API
+商品查询服务：对接聚宝赞 tenant-service → ExtMerchantFeignClient
 
-接口：
-- POST /api/v1/ext-merchant/product-details 商品详情（按ID）
-- POST /api/v1/ext-merchant/product-search 商品搜索（按名称）
+VO 定义（tenant-api/vo/external/product/ProductDetailsVO）：
+{
+  "productId": str,        // 商品ID
+  "name": str,             // 商品名称
+  "category": str,         // 分类
+  "price": BigDecimal,     // 售价
+  "originalPrice": BigDecimal, // 原价
+  "images": [str],         // 商品图片列表
+  "stock": int,            // 库存
+  "status": str,           // 上架/下架
+  "supplierId": str,       // 供应商ID
+  "supplierName": str,     // 供应商名称
+  "goodsType": int,        // 1=实物商品, 2=虚拟商品
+  "tags": str,             // 标签
+  "skuList": [...]         // 规格列表 (ProductSkuVO[])
+}
+
+调用链路：merchant-service → buyer-service → tenant-service → ExtMerchantFeignClient
 """
 import logging
 import httpx

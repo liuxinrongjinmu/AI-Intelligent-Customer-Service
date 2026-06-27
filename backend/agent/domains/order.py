@@ -38,28 +38,38 @@ async def order_query_node(state: AgentState) -> dict:
         formatted = format_order_result(api_result)
         logger.info(f"订单查询成功: tenant={tenant_id}, total={api_result.get('total', 0)}")
 
-        # 物流查询 → 在订单结果后追加物流追踪
+        # 物流查询 → 优先从 OrderDetailsVO.expressList 获取，无则单独调物流接口
         if intent == "logistics_query" and api_result.get("data"):
             order_data = api_result.get("data")
+            # 尝试从 expressList 直接提取物流（已随订单查询返回）
+            express_list = None
             if isinstance(order_data, dict):
+                express_list = order_data.get("expressList")
                 order_no = order_data.get("orderNo") or order_keyword
-            elif isinstance(order_data, list) and order_data and isinstance(order_data[0], dict):
-                order_no = order_data[0].get("orderNo") or order_keyword
+            elif isinstance(order_data, list) and order_data:
+                express_list = order_data[0].get("expressList") if isinstance(order_data[0], dict) else None
+                order_no = order_data[0].get("orderNo") if isinstance(order_data[0], dict) else order_keyword
             else:
                 order_no = order_keyword
-            logistics_result = await call_and_log(
-                tenant_id=tenant_id,
-                tool_name="query_logistics",
-                tool_params={"tenant_id": tenant_id, "order_no": order_no},
-                func=query_logistics,
-                conversation_id=thread_id,
-            )
-            if logistics_result.get("success", False):
-                formatted += "\n\n" + format_logistics_result(logistics_result)
-            elif "暂未配置" in logistics_result.get("message", ""):
-                formatted += "\n\n物流信息暂未配置，请稍后重试或联系人工客服。"
+
+            if express_list and len(express_list) > 0:
+                # expressList 已有数据，直接格式化
+                formatted += "\n\n" + format_logistics_result({"success": True, "data": express_list})
             else:
-                formatted += "\n\n暂无物流信息，您的订单可能尚未发货。"
+                # 无物流数据，单独查询
+                logistics_result = await call_and_log(
+                    tenant_id=tenant_id,
+                    tool_name="query_logistics",
+                    tool_params={"tenant_id": tenant_id, "order_no": order_no},
+                    func=query_logistics,
+                    conversation_id=thread_id,
+                )
+                if logistics_result.get("success", False):
+                    formatted += "\n\n" + format_logistics_result(logistics_result)
+                elif "暂未配置" in logistics_result.get("message", ""):
+                    formatted += "\n\n物流信息暂未配置，请稍后重试或联系人工客服。"
+                else:
+                    formatted += "\n\n暂无物流信息，您的订单可能尚未发货。"
         return {"final_answer": formatted}
 
     if "暂未配置" in api_result.get("message", ""):

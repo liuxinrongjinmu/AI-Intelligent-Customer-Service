@@ -72,6 +72,13 @@ class Settings(BaseSettings):
     workers: int = Field(default=1, ge=1, le=16)
 
     # ─── Gateway 认证 ─────────────────────────────────────────────
+    # 认证模式：jwt（JWT 验签）/ static（静态令牌）/ both（兼容两种）
+    gateway_auth_mode: str = Field(default="both")
+    # JWT 签名密钥（HS256），可从 Nacos 配置 jwt.secret 获取，也可直接配置
+    jwt_secret: str = Field(default="")
+    # 是否信任 Gateway 注入的身份 Header（X-Tenant-Id / X-Buyer-Id 等）
+    gateway_trust_headers: bool = Field(default=True)
+    # 静态令牌模式（兼容旧版）
     gateway_verified_header: str = Field(default="X-Gateway-Verified")
     gateway_verified_value: str = Field(default="")
     gateway_ip_whitelist: str = Field(
@@ -164,6 +171,9 @@ ALLOWED_ORIGINS: str = settings.allowed_origins
 ENABLE_DOCS: bool = settings.enable_docs
 WORKERS: int = settings.workers
 
+GATEWAY_AUTH_MODE: str = settings.gateway_auth_mode
+JWT_SECRET: str = settings.jwt_secret
+GATEWAY_TRUST_HEADERS: bool = settings.gateway_trust_headers
 GATEWAY_VERIFIED_HEADER: str = settings.gateway_verified_header
 GATEWAY_VERIFIED_VALUE: str = settings.gateway_verified_value
 GATEWAY_IP_WHITELIST: str = settings.gateway_ip_whitelist
@@ -216,6 +226,11 @@ def validate_config():
         errors.append("DEEPSEEK_API_KEY 未配置，LLM 调用将全部失败")
 
     # Gateway 安全
+    if settings.gateway_auth_mode in ("jwt", "both") and not settings.jwt_secret:
+        if settings.env == "prod":
+            errors.append("JWT_SECRET 未配置，生产环境 JWT 认证拒绝启动")
+        else:
+            warnings.append("JWT_SECRET 未配置，JWT 认证将无法验签")
     if not settings.gateway_ip_whitelist:
         warnings.append("建议配置 GATEWAY_IP_WHITELIST")
     if settings.gateway_ip_whitelist == "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16":

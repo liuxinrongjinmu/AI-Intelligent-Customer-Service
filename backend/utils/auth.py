@@ -2,100 +2,104 @@
 接口认证模块
 
 认证策略：
-- 聊天接口：双模式认证
-  - 带 X-Gateway-Verified 头：Gateway 认证（服务间调用，校验头值 + IP 白名单）
-  - 不带 X-Gateway-Verified 头：
-    - 生产环境（ENV=prod）：拒绝直连，必须通过 Gateway 认证
-    - 开发/测试环境：允许前端直连放行（调试用），记录警告
-- 同步/统计接口：Gateway 认证（仅服务间调用）
+- 聊天接口：三模式认证
+  - JWT token（Authorization: Bearer <token>）→ JWT 验签
+  - Gateway 静态令牌（X-Gateway-Verified + IP 白名单）→ 兼容旧版
+  - 开发/测试环境无认证头 → 直连放行（调试用）
+- 同步/统计接口：JWT 或 Gateway 认证（服务间调用）
 - 管理接口：ADMIN_API_KEY 认证（内部管理操作）
 """
 import hmac
 import logging
 from fastapi import Request, HTTPException
 
-from backend.config import ADMIN_API_KEY, GATEWAY_VERIFIED_HEADER
-from backend.middleware.gateway_auth import verify_gateway_request
+from backend.config import ADMIN_API_KEY, GATEWAY_AUTH_MODE
+from backend.middleware.gateway_auth import verify_request, extract_identity
 
 logger = logging.getLogger(__name__)
 
 
-# ─── 聊天接口认证（双模式：前端直连放行 + Gateway 认证） ──────────────────────
+# ─── 聊天接口认证 ──────────────────────────────────────────────────────
 
 
 async def verify_chat_api_key(request: Request) -> str:
     """
-    聊天接口认证（双模式，按环境区分）
+    聊天接口认证（三模式）
 
-    1. 带 X-Gateway-Verified 头：走 Gateway 认证（服务间调用）
-    2. 不带该头：
-       - 生产环境：拒绝直连，必须通过 Gateway 认证
-       - 开发/测试环境：允许前端直连放行（调试用）
+    1. 携带 JWT token 或 Gateway 头 → 走完整认证
+    2. 开发/测试环境无认证头 → 允许前端直连（调试用）
+    3. 生产环境无认证头 → 拒绝
 
-    :param request: FastAPI 请求对象
-    :return: 认证通过的标识
+    :return: 认证标识
     :raises HTTPException: 认证失败
     """
-    gateway_header = request.headers.get(GATEWAY_VERIFIED_HEADER, "")
-    if gateway_header:
-        # 带了 Gateway 头 → 服务间调用，必须通过完整认证
-        return await verify_gateway_request(request)
+    # 检测是否有任何认证凭证
+    has_jwt = request.headers.get("Authorization", "").startswith("Bearer ")
+    has_gateway = bool(request.headers.get("X-Gateway-Verified", ""))
+    has_auth = has_jwt or has_gateway
+
+    if has_auth:
+        return await verify_request(request)
+
+    # 无认证凭证 → 按环境处理
+    from backend.config import ENV
+    client_ip = request.client.host if request.client else "unknown"
+
+    if ENV == "prod":
+        logger.warning(f"生产环境聊天接口直连被拒: IP={client_ip}")
+        raise HTTPException(status_code=401, detail={
+            "code": "AUTH_REQUIRED",
+            "message": "生产环境必须通过 Gateway 认证或 JWT 认证访问"
+        })
     else:
-        # 没带 Gateway 头 → 检查运行环境
-        from backend.config import ENV
-        if ENV == "prod":
-            # 生产环境：必须通过 Gateway 认证，拒绝直连
-            client_ip = request.client.host if request.client else "unknown"
-            logger.warning(f"生产环境聊天接口直连被拒: IP={client_ip}")
-            raise HTTPException(
-                status_code=401,
-                detail={
-                    "code": "GATEWAY_AUTH_REQUIRED",
-                    "message": "生产环境必须通过 Gateway 认证访问"
-                }
-            )
-        else:
-            # 开发/测试环境：允许前端直连（调试用）
-            client_ip = request.client.host if request.client else "unknown"
-            logger.info(f"聊天接口前端直连放行(非生产环境): IP={client_ip}")
-            return "chat_direct"
+        logger.info(f"聊天接口直连放行(非生产): IP={client_ip}")
+        # 直连模式下从请求体提取身份（由 API 层处理）
+        return "chat_direct"
 
 
-# ─── 服务间接口认证（同步/统计） ──────────────────────────────────────────
+# ─── 服务间接口认证 ──────────────────────────────────────────────────────
 
 
 async def verify_sync_api_key(request: Request) -> str:
-    """
-    知识同步接口认证（统一 Gateway 认证）
-
-    :param request: FastAPI 请求对象
-    :return: 认证通过的标识
-    :raises HTTPException: 认证失败
-    """
-    return await verify_gateway_request(request)
+    """知识同步接口认证（JWT 或 Gateway）"""
+    return await verify_request(request)
 
 
-# ─── 管理接口认证（始终 API Key，不走 Gateway） ────────────────────────────
+# ─── 管理接口认证 ──────────────────────────────────────────────────────
 
 
 async def verify_admin_key(request: Request) -> str:
-    """
-    管理接口认证（始终使用 ADMIN_API_KEY）
-
-    :param request: FastAPI 请求对象
-    :return: 认证通过的标识
-    :raises HTTPException: 认证失败
-    """
+    """管理接口认证（ADMIN_API_KEY）"""
     api_key = request.headers.get("X-Admin-Key", "")
-    # 区分"未配置"与"密钥错误"，避免混淆运维排查
     if not ADMIN_API_KEY or ADMIN_API_KEY == "change-me-admin-key":
-        raise HTTPException(
-            status_code=500,
-            detail={"code": "ADMIN_NOT_CONFIGURED", "message": "管理接口未配置，请设置 ADMIN_API_KEY"}
-        )
+        raise HTTPException(status_code=500, detail={
+            "code": "ADMIN_NOT_CONFIGURED",
+            "message": "管理接口未配置，请设置 ADMIN_API_KEY"
+        })
     if not api_key or not hmac.compare_digest(api_key, ADMIN_API_KEY):
-        raise HTTPException(
-            status_code=403,
-            detail={"code": "AUTH_FAILED", "message": "无效的 Admin API Key"}
-        )
+        raise HTTPException(status_code=403, detail={
+            "code": "AUTH_FAILED",
+            "message": "无效的 Admin API Key"
+        })
     return "admin_authed"
+
+
+# ─── 身份提取工具 ──────────────────────────────────────────────────────
+
+
+def get_identity_from_request(request: Request) -> dict:
+    """
+    从请求中提取身份信息（门户 Header 优先，回退到 request.state）
+
+    用于 chat.py 等需要知道当前租户和用户的接口
+    """
+    # 优先从 Gateway Header 提取
+    identity = extract_identity(request)
+    if identity.get("tenant_id"):
+        return identity
+
+    # 回退到认证时写入的 request.state
+    if hasattr(request.state, "identity"):
+        return request.state.identity
+
+    return {"tenant_id": "", "user_id": "", "user_name": ""}

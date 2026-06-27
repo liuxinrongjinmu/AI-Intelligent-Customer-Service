@@ -1,7 +1,24 @@
 """
-订单查询服务：对接聚宝赞 ext-merchant API
+订单查询服务：对接聚宝赞 tenant-service → ExtMerchantFeignClient
 
-接口：POST /api/v1/ext-merchant/order-details
+VO 定义（tenant-api/vo/external/order/OrderDetailsVO）：
+{
+  "orderNo": str,          // 订单编号
+  "status": str,           // 订单状态 (UNPAID/PAID/SHIPPED/DELIVERED/COMPLETED/CANCELLED/REFUNDING/REFUNDED)
+  "statusLabel": str,      // 状态中文标签
+  "fullOrderInfo": {       // OrderFullInfoVO（含基本信息、收货人、子订单、售后）
+    "title": str,
+    "totalFee": str,
+    "created": str,
+    "receiverName": str,
+    "receiverMobile": str,
+    "receiverAddress": str,
+    "subOrders": [...]     // 子订单列表
+  },
+  "expressList": [...]     // 物流轨迹（查询物流后填充）
+}
+
+调用链路：merchant-service → buyer-service → tenant-service → ExtMerchantFeignClient
 """
 import logging
 import httpx

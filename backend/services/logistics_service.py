@@ -1,7 +1,17 @@
 """
-物流查询服务：对接聚宝赞 ext-merchant API
+物流查询服务：对接聚宝赞 tenant-service
 
-接口：POST /api/v1/ext-merchant/logistics
+物流数据来源有两种：
+1. OrderDetailsVO.expressList — 查询订单时已附带物流轨迹（优先使用）
+2. POST /api/v1/ext-merchant/logistics — 单独查询物流（expressList 为空时回退）
+
+expressList 条目结构：
+{
+  "courierCompany": str,   // 快递公司
+  "trackingNo": str,       // 运单号
+  "status": str,           // 物流状态
+  "trailList": [...]       // 物流详情（时间、地点、描述）
+}
 """
 import logging
 import httpx
