@@ -52,6 +52,7 @@ def make_test_state(**overrides) -> dict:
 from backend.models.tenant import Tenant  # noqa: F401
 from backend.models.conversation import Conversation, Message, ToolCallLog  # noqa: F401
 from backend.models.knowledge import FAQ, Document  # noqa: F401
+from backend.models.feedback import Feedback  # noqa: F401
 from backend.models.handoff import HandoffTicket  # noqa: F401
 from backend.knowledge.sync_log import SyncLog  # noqa: F401
 
