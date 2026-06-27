@@ -334,7 +334,6 @@ curl -X POST http://localhost:8081/api/v1/chat/demo_001/stream \
 | `faq` | 商家 FAQ 问答对 |
 | `product` | 商品知识 |
 | `rule` | 规则文档 |
-| `public` | 平台公共知识库（跨租户） |
 
 ### 系统监控
 

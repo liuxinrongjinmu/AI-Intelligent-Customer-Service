@@ -80,8 +80,7 @@ async def sync_knowledge(
       ]
     }
     """
-    if kb_type != "public":
-        _validate_tenant(tenant_id, db)
+    _validate_tenant(tenant_id, db)
     _validate_kb_type(kb_type)
 
     VALID_SYNC_TYPES = {"full", "incremental"}
@@ -148,8 +147,7 @@ async def sync_knowledge_batch(
       "delete_ids": ["faq_old_001", "faq_old_002"]
     }
     """
-    if kb_type != "public":
-        _validate_tenant(tenant_id, db)
+    _validate_tenant(tenant_id, db)
     _validate_kb_type(kb_type)
 
     items_dict = [item.model_dump() for item in (body.add or [])]
@@ -190,8 +188,7 @@ async def clear_knowledge_base(
     """
     清空某个租户的某类知识库（实时操作）
     """
-    if kb_type != "public":
-        _validate_tenant(tenant_id, db)
+    _validate_tenant(tenant_id, db)
     _validate_kb_type(kb_type)
 
     clear_collection(tenant_id, kb_type)
@@ -248,8 +245,7 @@ async def rollback_knowledge(
     :param tenant_id: 租户ID
     :param kb_type: 知识库类型
     """
-    if kb_type != "public":
-        _validate_tenant(tenant_id, db)
+    _validate_tenant(tenant_id, db)
     _validate_kb_type(kb_type)
 
     from backend.knowledge.sync_log import get_last_sync_snapshot

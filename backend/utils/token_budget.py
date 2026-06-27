@@ -190,7 +190,6 @@ def format_knowledge_token_aware(
         "faq": "FAQ知识库",
         "product": "商品知识库",
         "rule": "规则文档",
-        "public": "平台公共知识库",
     }
 
     for doc in trimmed:

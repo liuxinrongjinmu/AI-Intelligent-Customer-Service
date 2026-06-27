@@ -5,7 +5,7 @@ ChromaDB 向量存储封装：按租户 + 知识库类型隔离 collection
 - faq:     商家FAQ问答对
 - product: 商家商品FAQ
 - rule:    商家规则文档
-- public:  平台公共知识库（跨租户共享）
+- public:  已废弃，全局知识由聚宝赞端推送至各租户
 
 优化：读写分离 — 写入操作通过队列异步执行，不阻塞用户查询
 """
@@ -20,16 +20,14 @@ from backend.config import CHROMA_PATH
 
 logger = logging.getLogger(__name__)
 
-KB_COLLECTIONS = ["faq", "product", "rule", "public"]
+KB_COLLECTIONS = ["faq", "product", "rule"]
 
 
 def _collection_name(tenant_id: str, kb_type: str) -> str:
     """
     生成 ChromaDB collection 名称
-    公共知识库使用固定名称 public_kb，租户知识库使用 tenant_{id}_{type}
+    租户知识库使用 knowledge_{tenant_id}_{kb_type} 命名
     """
-    if kb_type == "public":
-        return "public_kb"
     return f"knowledge_{tenant_id}_{kb_type}"
 
 
