@@ -35,6 +35,55 @@ router = APIRouter(prefix="/api/v1/chat", tags=["消费者聊天"])
 SSE_TOTAL_TIMEOUT = 120  # SSE 流式总超时（秒）
 
 
+@router.post("/{tenant_id}/new")
+async def create_session(
+    request: Request,
+    tenant_id: str,
+    db: Session = Depends(get_db),
+    _api_key: str = Depends(verify_chat_api_key),
+):
+    """
+    创建新会话，返回 thread_id
+
+    聚宝赞端在发起 SSE 对话前先调用此接口获取会话 ID。
+    后续 SSE 请求携带该 thread_id 作为 session_id。
+
+    Header（由 Gateway 注入）：
+    - Authorization: Bearer <JWT>
+    - X-Tenant-Id: 租户ID
+    - X-Buyer-Id: 买家ID（可选，优先于请求体）
+    - X-Username: 用户名（可选）
+
+    :return: {"thread_id": str}
+    """
+    from backend.utils.auth import get_identity_from_request
+    identity = get_identity_from_request(request)
+    effective_tenant_id = identity.get("tenant_id", "") or tenant_id
+    tenant = _get_tenant(effective_tenant_id, db)
+
+    user_id = identity.get("user_id", "")
+    user_name = identity.get("user_name", "") or "匿名用户"
+
+    # 生成新的 thread_id（也就是 session_id）
+    import uuid
+    thread_id = "sess_" + uuid.uuid4().hex[:16]
+
+    # 创建会话记录
+    conversation = Conversation(
+        thread_id=thread_id,
+        tenant_id=effective_tenant_id,
+        user_id=user_id,
+        user_name=user_name,
+        channel="api",
+        status="ai_serving",
+    )
+    db.add(conversation)
+    db.commit()
+
+    logger.info(f"新会话创建: thread_id={thread_id}, tenant={effective_tenant_id}, user={user_id}")
+    return {"thread_id": thread_id}
+
+
 def _get_tenant(tenant_id: str, db: Session) -> Tenant:
     """
     从 URL 路径获取租户
