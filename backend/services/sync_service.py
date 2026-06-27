@@ -17,7 +17,7 @@ from typing import Optional
 from backend.retrieval.vector_store import (
     clear_collection, add_to_collection_sync, delete_from_collection, get_collection
 )
-from backend.retrieval.embedding import get_embedding_model, embed_documents_async
+from backend.retrieval.embedding import embed_documents_async
 from backend.retrieval.chunker import chunk_items
 
 logger = logging.getLogger(__name__)
