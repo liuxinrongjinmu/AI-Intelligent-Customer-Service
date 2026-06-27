@@ -119,6 +119,38 @@ class Settings(BaseSettings):
 # ─── 全局单例 ────────────────────────────────────────────────────
 
 
+def _load_jwt_secret_from_nacos() -> str:
+    """
+    尝试从 Nacos 读取 jwt.secret（gateway-service.yaml）
+    失败时返回空字符串，由调用方回退到其他来源
+    """
+    try:
+        from nacos import NacosClient
+        client = NacosClient(
+            server_addresses=settings.nacos_server_addr,
+            namespace=settings.nacos_namespace or "",
+            username=settings.nacos_username or None,
+            password=settings.nacos_password or None,
+        )
+        config = client.get_config(
+            data_id="gateway-service.yaml",
+            group=settings.nacos_group or "DEFAULT_GROUP",
+            timeout=5,
+        )
+        if config:
+            # gateway-service.yaml 是 YAML 格式，简单解析 jwt.secret
+            for line in config.split("\n"):
+                line = line.strip()
+                if line.startswith("jwt.secret:") or line.startswith("jwt.secret="):
+                    secret = line.split(":", 1)[-1].strip() if ":" in line else line.split("=", 1)[-1].strip()
+                    if secret and secret != '""':
+                        logger.info("已从 Nacos gateway-service.yaml 加载 jwt.secret")
+                        return secret
+    except Exception as e:
+        logger.debug(f"从 Nacos 读取 jwt.secret 失败（将使用 JWT_SECRET 环境变量）: {e}")
+    return ""
+
+
 def _init_settings() -> Settings:
     """延迟初始化 Settings，捕获错误并友好提示"""
     try:
@@ -128,7 +160,33 @@ def _init_settings() -> Settings:
         raise RuntimeError(f"无法加载配置，请检查 .env 文件: {e}") from e
 
 
+# ─── JWT 密钥加载（优先级：Nacos > 环境变量 > 开发默认密钥）───────────────
+
+_DEV_JWT_SECRET = "default-secret-key-for-local-development-256-bits!"
+
+
+def _resolve_jwt_secret() -> str:
+    """按优先级解析 JWT 签名密钥"""
+    # 1. 环境变量显式配置
+    if settings.jwt_secret and settings.jwt_secret != _DEV_JWT_SECRET:
+        return settings.jwt_secret
+
+    # 2. 尝试从 Nacos 读取
+    nacos_secret = _load_jwt_secret_from_nacos()
+    if nacos_secret:
+        return nacos_secret
+
+    # 3. 开发环境使用默认密钥
+    if settings.env != "prod":
+        logger.warning(f"JWT_SECRET 未配置，使用开发默认密钥（仅限非生产环境）")
+        return _DEV_JWT_SECRET
+
+    # 4. 生产环境无密钥 → 留空（启动时 validate_config 会报错）
+    return ""
+
+
 settings = _init_settings()
+_JWT_SECRET_RESOLVED = _resolve_jwt_secret()
 
 
 # ─── 向后兼容：模块级变量重导出 ──────────────────────────────────
@@ -172,7 +230,8 @@ ENABLE_DOCS: bool = settings.enable_docs
 WORKERS: int = settings.workers
 
 GATEWAY_AUTH_MODE: str = settings.gateway_auth_mode
-JWT_SECRET: str = settings.jwt_secret
+JWT_SECRET: str = _JWT_SECRET_RESOLVED
+JWT_SECRET_RAW: str = settings.jwt_secret  # 环境变量原始值（不含 Nacos/默认解析）
 GATEWAY_TRUST_HEADERS: bool = settings.gateway_trust_headers
 GATEWAY_VERIFIED_HEADER: str = settings.gateway_verified_header
 GATEWAY_VERIFIED_VALUE: str = settings.gateway_verified_value
@@ -226,9 +285,9 @@ def validate_config():
         errors.append("DEEPSEEK_API_KEY 未配置，LLM 调用将全部失败")
 
     # Gateway 安全
-    if settings.gateway_auth_mode in ("jwt", "both") and not settings.jwt_secret:
+    if settings.gateway_auth_mode in ("jwt", "both") and not _JWT_SECRET_RESOLVED:
         if settings.env == "prod":
-            errors.append("JWT_SECRET 未配置，生产环境 JWT 认证拒绝启动")
+            errors.append("JWT_SECRET 未配置（环境变量/Nacos 均无），生产环境 JWT 认证拒绝启动")
         else:
             warnings.append("JWT_SECRET 未配置，JWT 认证将无法验签")
     if not settings.gateway_ip_whitelist:
