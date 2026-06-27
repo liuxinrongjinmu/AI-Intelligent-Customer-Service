@@ -34,14 +34,19 @@ from backend.utils.helpers import resolve_tenant_id
 
 logger = logging.getLogger(__name__)
 
-# 聚宝赞 ext-merchant API 路径
-ORDER_DETAILS_PATH = "/api/v1/ext-merchant/order-details"
+# 聚宝赞 merchant-service 订单 API（实际路径，来自 Swagger /v3/api-docs）
+ORDER_QUERY_PATH = "/api/v1/orders/query"
+ORDER_SEARCH_PATH = "/api/v1/orders/search"
 
 
 @retry_on_transient_error(max_retries=2)
 async def _do_query_order(tenant_id: str, order_no: str) -> dict[str, Any]:
     """
-    执行订单查询 HTTP 请求（含重试）
+    执行订单详情查询 HTTP 请求（含重试）
+
+    POST /api/v1/orders/query
+    请求: OrderDetailQueryDTO {orderNo, tenantId}
+    响应: ResultOrderDetailVO {code, data: OrderDetailVO, ...}
 
     :param tenant_id: 租户ID
     :param order_no: 订单号
@@ -53,7 +58,7 @@ async def _do_query_order(tenant_id: str, order_no: str) -> dict[str, Any]:
     response = await nacos_request(
         "POST",
         service_name=ORDER_SERVICE_NAME,
-        path=ORDER_DETAILS_PATH,
+        path=ORDER_QUERY_PATH,
         json_data=body,
         headers=headers,
         timeout=httpx.Timeout(ORDER_API_TIMEOUT),
@@ -97,10 +102,12 @@ def format_order_result(result: dict[str, Any]) -> str:
     """
     将订单查询结果格式化为人类可读的文本
 
-    适配聚宝赞 OrderDetailsVO 结构：
-    - orderNo: 订单号
-    - status: 订单状态
-    - fullOrderInfo: OrderFullInfoVO（含 title, totalFee, status, created, receiverName 等）
+    适配聚宝赞 OrderDetailVO 扁平结构：
+    - orderNo / status / title / totalFee / created
+    - receiverName / receiverMobile / receiverAddress
+    - subOrders[] / afterSales[] / expressList[]
+
+    响应格式：ResultOrderDetailVO {code, data: OrderDetailVO, success}
 
     :param result: query_order 返回的结果字典
     :return: 格式化后的文本
@@ -108,23 +115,21 @@ def format_order_result(result: dict[str, Any]) -> str:
     if not result.get("success", False):
         return result.get("message", "订单查询失败")
 
+    # data 字段直接是 OrderDetailVO（扁平结构，不再嵌套 fullOrderInfo）
     data = result.get("data") or {}
     if not data:
         return "没有找到相关订单，请核实订单号后重试，或联系人工客服协助查询。"
 
-    # 解析 OrderDetailsVO
     order_no = data.get("orderNo", "未知")
     status = _map_order_status(data.get("status", ""))
-    full_info = data.get("fullOrderInfo") or {}
-
-    title = full_info.get("title", "")
-    total_fee = full_info.get("totalFee", "未知")
-    created = full_info.get("created", "未知")
-    receiver_name = full_info.get("receiverName", "")
-    receiver_mobile = full_info.get("receiverMobile", "")
-    receiver_address = full_info.get("receiverAddress", "")
-    supplier_name = full_info.get("supplierName", "")
-    sub_orders = full_info.get("subOrders") or []
+    title = data.get("title", "")
+    total_fee = data.get("totalFee", "未知")
+    created = data.get("created", "未知")
+    receiver_name = data.get("receiverName", "")
+    receiver_mobile = data.get("receiverMobile", "")
+    receiver_address = data.get("receiverAddress", "")
+    supplier_name = data.get("supplierName", "")
+    sub_orders = data.get("subOrders") or []
 
     lines = [
         f"订单号：{order_no}",
