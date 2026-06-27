@@ -114,7 +114,7 @@
 ### 知识库检索（RAG）
 
 - **混合检索**：向量语义检索 + 关键词文本匹配，双路并行召回
-- **多知识库类型**：FAQ、商品、规则、平台公共知识库
+- **多知识库类型**：FAQ、商品、规则
 - **租户隔离**：每个商家的知识库完全独立
 - **RRF 融合**：双路结果通过 Reciprocal Rank Fusion 算法合并排序，向量路权重 0.7 + 关键词路权重 0.3
 
@@ -316,7 +316,7 @@ python chat.py
 ```bash
 curl -X POST http://localhost:8081/api/v1/chat/demo_001/stream \
   -H "Content-Type: application/json" \
-  -H "X-Gateway-Verified: true" \
+  -H "Authorization: Bearer <JWT_TOKEN>" \
   -d '{"message": "退货政策是什么？", "session_id": "sess_001", "user_id": "user_001"}'
 ```
 
@@ -544,7 +544,7 @@ LLM 的上下文窗口有限，系统通过 Token 预算管理确保不超出限
    ├── 第3层：敏感词审核
    │   └── 赌博/色情/毒品/诈骗等敏感词拦截
    │
-   ├── 第4层：Gateway 网关认证（服务间）+ Admin API Key（管理接口）
+   ├── 第4层：JWT Bearer Token 认证 / Gateway 静态令牌 + Admin API Key（管理接口）
    │   └── hmac.compare_digest 时序安全比较
    │
    └── 第5层：输出过滤
@@ -586,7 +586,7 @@ docker-compose exec kefu-agent python -m backend.seed
 ### 生产环境注意事项
 
 1. **必须修改默认密钥**：修改 `ADMIN_API_KEY`
-2. **配置 Gateway 认证**：确保请求经 Gateway 转发，携带 `X-Gateway-Verified: true` 头
+2. **配置 JWT 认证**：设置 `GATEWAY_AUTH_MODE=jwt`，配置 `JWT_SECRET` 与聚宝赞 Nacos 一致
 3. **CORS 配置**：通过 `ALLOWED_ORIGINS` 环境变量配置允许的跨域来源
 4. **资源限制**：docker-compose 已配置 CPU 2核 / 内存 2G 上限
 5. **健康检查**：`/api/v1/system/health` 端点可用于负载均衡器探活
@@ -660,7 +660,7 @@ A: 通过知识同步 API 推送：
 ```bash
 curl -X POST http://localhost:8081/api/v1/knowledge/sync/demo_001/faq \
   -H "Content-Type: application/json" \
-  -H "X-Gateway-Verified: true" \
+  -H "Authorization: Bearer <JWT_TOKEN>" \
   -d '{
     "sync_type": "incremental",
     "items": [
@@ -688,7 +688,7 @@ curl -X POST http://localhost:8081/api/v1/tenant/create \
 
 A:
 1. 修改 `ADMIN_API_KEY` 默认密钥
-2. 配置 Gateway 认证（`X-Gateway-Verified` + IP 白名单）
+2. 配置 JWT 认证（`JWT_SECRET` 与聚宝赞 Nacos 保持一致）
 3. 配置 Nginx 反向代理 + HTTPS
 4. 定期轮换 Admin API Key
 

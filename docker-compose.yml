@@ -13,9 +13,13 @@ services:
       - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
       # 管理接口认证密钥（仅管理接口使用，服务间接口走 Gateway 认证）
       - ADMIN_API_KEY=${ADMIN_API_KEY:?Admin API Key 必须配置}
-      # Gateway 认证配置（所有环境统一，生产环境必须配置强密钥）
+      # JWT 认证（推荐，与聚宝赞 Nacos jwt.secret 一致）
+      - GATEWAY_AUTH_MODE=${GATEWAY_AUTH_MODE:-both}
+      - JWT_SECRET=${JWT_SECRET:-}
+      - GATEWAY_TRUST_HEADERS=${GATEWAY_TRUST_HEADERS:-true}
+      # Gateway 静态令牌认证（兼容旧版）
       - GATEWAY_VERIFIED_HEADER=${GATEWAY_VERIFIED_HEADER:-X-Gateway-Verified}
-      - GATEWAY_VERIFIED_VALUE=${GATEWAY_VERIFIED_VALUE:?必须配置 GATEWAY_VERIFIED_VALUE，禁止使用默认值 true}
+      - GATEWAY_VERIFIED_VALUE=${GATEWAY_VERIFIED_VALUE:-}
       - GATEWAY_IP_WHITELIST=${GATEWAY_IP_WHITELIST:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
       # Nacos 服务注册与发现
       - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-127.0.0.1:8848}

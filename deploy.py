@@ -19,7 +19,7 @@
   set DEPLOY_HOST=192.168.0.234
   set DEPLOY_PORT=6022
   set DEPLOY_USER=deploy
-  set DEPLOY_PATH=/home/deploy/rag
+  set DEPLOY_PATH=/home/deploy/kefu_agent
 """
 import os
 import sys
@@ -98,7 +98,7 @@ def main():
       4. 构建并启动新容器
       5. 健康检查验证
     """
-    deploy_path = os.getenv("DEPLOY_PATH", "/home/deploy/rag")
+    deploy_path = os.getenv("DEPLOY_PATH", "/home/deploy/kefu_agent")
 
     ssh = connect_ssh()
 
