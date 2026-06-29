@@ -73,8 +73,8 @@ async def _do_search_product(tenant_id: str, product_name: str, page: int = 1, p
     """
     body = {
         "tenantId": resolve_tenant_id(tenant_id),
-        "productName": product_name,
-        "page": page,
+        "keyword": product_name,
+        "pageNo": page,
         "pageSize": page_size,
     }
     headers = {"Content-Type": "application/json"}
