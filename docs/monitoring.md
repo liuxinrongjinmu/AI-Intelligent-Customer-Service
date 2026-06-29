@@ -49,9 +49,9 @@ Grafana  ──查询──→  可视化仪表盘
 | 指标名 | 类型 | 说明 | 标签 |
 |--------|------|------|------|
 | `kefu_requests_total` | counter | HTTP 请求总数 | `method`, `path`, `status` |
-| `kefu_request_latency_ms` | summary | 请求延迟（毫秒） | `method`, `path`, `quantile`（0.5/0.95/0.99） |
+| `kefu_request_duration_ms` | histogram | 请求延迟（毫秒），buckets: 10/25/50/100/250/500/1000/2500/5000/10000 | `method`, `path` |
 
-> 说明：任务规划中曾命名为 `kefu_request_duration_seconds`，实际实现为毫秒级 summary，命名为 `kefu_request_latency_ms`，便于直接观测 P99 延迟。
+> 说明：使用 Prometheus Histogram 类型，通过 `histogram_quantile()` 函数计算 P50/P95/P99 分位数。
 
 ### 2.3 业务指标
 
@@ -65,10 +65,12 @@ Grafana  ──查询──→  可视化仪表盘
 | 指标名 | 类型 | 说明 | 标签 |
 |--------|------|------|------|
 | `kefu_errors_total` | counter | 错误次数 | `type`（错误类型） |
+| `kefu_cache_total` | counter | 缓存命中/未命中计数 | `result`（hit/miss） |
+| `kefu_retrieval_total` | counter | 检索结果计数 | `result`（found/empty） |
+| `kefu_handoff_total` | counter | 转人工次数 | 无 |
+| `kefu_timing_total` | counter | 请求处理耗时计数（按意图统计） | `intent` |
 
-> 说明：
-> - 任务规划中曾命名 `kefu_llm_errors_total`，实际实现为统一的 `kefu_errors_total`，通过 `type="llm_call_failed"` 标签区分 LLM 调用失败。
-> - 缓存命中（`kefu_cache_hits_total`）与检索结果（`kefu_retrieval_docs`）当前以 `kefu_requests_total` 的 `cache:hit` / `cache:miss` / `retrieval:found` / `retrieval:empty` 标签组合实现，未单独拆分为独立指标。
+> 说明：`kefu_errors_total` 通过 `type` 标签区分错误类型（llm_call_failed/api_timeout 等），统一管理所有错误计数。
 
 ### 2.5 指标采集函数（开发参考）
 
@@ -205,7 +207,7 @@ http://<server-ip>:3000
 
 | 项 | 值 |
 |----|----|
-| 表达式 | `sum(rate(kefu_requests_total{path~".*handoff.*"}[10m])) / sum(rate(kefu_chat_messages_total[10m])) > 0.3` |
+| 表达式 | `sum(rate(kefu_handoff_total[10m])) / sum(rate(kefu_chat_messages_total[10m])) > 0.3` |
 | 持续时间 | `10m` |
 | 触发条件 | 转人工率超过 30%，持续 10 分钟 |
 | 处理建议 | 排查知识库覆盖度、意图识别准确率、AI 回答质量 |

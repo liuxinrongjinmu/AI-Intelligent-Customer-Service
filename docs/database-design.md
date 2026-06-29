@@ -266,20 +266,20 @@ Agent 节点调用外部工具（业务 API）的日志记录。
 | 项 | 值 |
 |----|----|
 | 备份模块 | `backend/utils/backup.py` |
-| 备份命令 | `docker exec kefu-postgres pg_dump -U kefu kefu_agent` |
-| 备份目录 | `data/` |
-| 备份文件命名 | `pg_backup_YYYYMMDD_HHMMSS.sql` |
+| 备份方式 | `pg_dump -F c`（自定义压缩格式，通过 TCP 直连数据库） |
+| 备份目录 | `data/backups/` |
+| 备份文件命名 | `app_YYYYMMDD_HHMMSS.dump` |
 | 备份间隔 | 3600 秒（1 小时） |
 | 每小时备份保留数 | 24 个（1 天） |
 | 每日快照保留数 | 7 个（1 周） |
-| 过期清理 | `find data/ -name 'pg_backup_*.sql' -mtime +7 -delete` |
+| 过期清理 | 按修改时间排序，保留最近 24 个 + 每天一个历史快照（最多 7 个），其余删除 |
 
 ### 4.2 备份流程
 
 1. **启动备份**：`backup_now()` 在 FastAPI lifespan 启动时立即执行一次备份。
-2. **定时备份**：`start_backup_scheduler()` 启动后台任务，每小时执行 `pg_dump`。
-3. **部署前备份**：`deploy.py` 在 `docker compose down` 前执行 `pg_dump` 备份。
-4. **过期清理**：每次备份后清理超过 7 天的旧备份文件。
+2. **定时备份**：`start_backup_scheduler()` 启动后台任务，每小时执行 `pg_dump -F c`。
+3. **部署前备份**：`deploy.py` 在 `docker compose down` 前通过 `docker exec` 执行 `pg_dump` 备份。
+4. **过期清理**：`_cleanup_old_backups()` 在每次备份后自动执行。
 
 ### 4.3 备份任务管理
 
@@ -287,7 +287,7 @@ Agent 节点调用外部工具（业务 API）的日志记录。
 |------|------|
 | `start_backup_scheduler()` | 启动后台备份任务（FastAPI 启动时调用） |
 | `stop_backup_scheduler()` | 停止后台备份任务（FastAPI 关闭时调用） |
-| `backup_now()` | 立即执行一次 `pg_dump` 备份 |
+| `backup_now()` | 立即执行一次 `pg_dump -F c` 备份 |
 | `_cleanup_old_backups()` | 清理过期备份（保留 24 个每小时 + 7 个每日） |
 
 ### 4.4 手动恢复
@@ -296,15 +296,15 @@ Agent 节点调用外部工具（业务 API）的日志记录。
 # 登录到部署服务器
 ssh deploy@192.168.0.234
 
-# 恢复 PostgreSQL 数据库
+# 恢复 PostgreSQL 数据库（压缩格式需用 pg_restore）
 cd /home/deploy/kefu_agent
-docker exec -i kefu-postgres psql -U kefu kefu_agent < data/pg_backup_20260629_120000.sql
+docker exec -i kefu-postgres pg_restore -U kefu -d kefu_agent -c < data/backups/app_20260629_120000.dump
 
 # 重启服务
 docker compose restart kefu-agent
 ```
 
-> 注意：恢复前建议先对当前数据库做一次备份。恢复后需重启 kefu-agent 以重建连接池。
+> 注意：恢复前建议先对当前数据库做一次备份。`-c` 参数会先清空已有表数据。恢复后需重启 kefu-agent 以重建连接池。
 
 ---
 
@@ -314,7 +314,7 @@ docker compose restart kefu-agent
 |------|------|----------|
 | PostgreSQL 数据库 | 主业务数据库（Docker 容器 `kefu-postgres`） | `DATABASE_URL` |
 | `data/chroma_db/` | ChromaDB 向量知识库（租户级 Collection 隔离） | `CHROMA_PATH` |
-| `data/pg_backup_*.sql` | PostgreSQL 备份文件 | - |
+| `data/backups/app_*.dump` | PostgreSQL 备份文件（pg_dump 自定义压缩格式） | - |
 | `alembic/versions/` | Schema 迁移脚本 | - |
 
 > LangGraph Checkpoint 数据直接存储在 PostgreSQL 中（`langgraph-checkpoint-postgres`），无需额外文件。

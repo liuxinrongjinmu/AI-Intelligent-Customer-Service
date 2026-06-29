@@ -244,7 +244,7 @@ python chat.py
 
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
-| `DATABASE_URL` | `postgresql://kefu:kefu_pwd@localhost:5432/kefu_agent` | PostgreSQL 数据库连接串（必填） |
+| `DATABASE_URL` | 必填，无默认值（示例: `postgresql://kefu:kefu_pwd@localhost:5432/kefu_agent`） | PostgreSQL 数据库连接串 |
 | `CHROMA_PATH` | `data/chroma_db` | ChromaDB 向量库路径 |
 
 ### 检索参数
