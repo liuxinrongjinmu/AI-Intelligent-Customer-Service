@@ -136,7 +136,7 @@ async def query_product(
             # 兼容 list / {list: [...]} / {records: [...]} / {items: [...]} 等常见分页结构
             if isinstance(data, dict):
                 records = []
-                for key in ("list", "records", "items", "data"):
+                for key in ("productList", "list", "records", "items", "data"):
                     if key in data:
                         records = data.get(key) or []
                         break
