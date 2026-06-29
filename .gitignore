@@ -2,6 +2,7 @@
 .env
 .env.dev
 .env.prod
+.env.test
 
 # 运行时数据
 data/
