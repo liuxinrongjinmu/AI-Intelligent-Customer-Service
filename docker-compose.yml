@@ -29,8 +29,8 @@ services:
       - NACOS_PASSWORD=${NACOS_PASSWORD:-}
       - SERVICE_IP=${SERVICE_IP:-}
       - SERVICE_PORT=${SERVICE_PORT:-8080}
-      # 聚宝赞端 Nacos 服务名（所有 ext-merchant API 部署在同一个服务上）
-      - MERCHANT_SERVICE_NAME=${MERCHANT_SERVICE_NAME:-merchant-service}
+      # 聚宝赞端 Nacos 服务名（订单等 ext-merchant API 在 tenant-service @ 8131）
+      - MERCHANT_SERVICE_NAME=${MERCHANT_SERVICE_NAME:-tenant-service}
       # 业务 API 超时配置（秒）
       - ORDER_API_TIMEOUT=${ORDER_API_TIMEOUT:-10}
       - LOGISTICS_API_TIMEOUT=${LOGISTICS_API_TIMEOUT:-10}

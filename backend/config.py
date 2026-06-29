@@ -102,7 +102,7 @@ class Settings(BaseSettings):
     user_profile_api_timeout: int = Field(default=10, ge=1, le=120)
 
     # ─── Nacos 服务名 ─────────────────────────────────────────────
-    merchant_service_name: str = Field(default="tenant-service")
+    merchant_service_name: str = Field(default="tenant-service", description="聚宝赞 ext-merchant API 服务名（订单/物流/商品/优惠券等）")
     order_service_name: str = Field(default="")
     product_service_name: str = Field(default="")
     logistics_service_name: str = Field(default="")
