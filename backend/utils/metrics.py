@@ -188,11 +188,13 @@ def record_handoff():
 
 def record_request_timing(elapsed: float, intent: str = ""):
     """
-    记录请求处理耗时
+    记录意图分类耗时及计数
 
-    :param elapsed: 耗时（秒）
-    :param intent: 意图名称
+    :param elapsed: 耗时（秒），预留用于未来 Histogram 指标
+    :param intent: 意图名称（如 order_query/history_order），空值记为 total
     """
+    # 当前仅计数，elapsed 预留用于后续改为 Histogram 时按 intent 分桶记录实际耗时
+    _ = elapsed  # 标记为有意未使用，避免 linter 告警
     _timing_count.labels(intent=intent if intent else "total").inc()
 
 

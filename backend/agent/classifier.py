@@ -15,6 +15,7 @@ from backend.utils.response_cache import get_cached_intent, set_cached_intent
 from backend.utils.metrics import record_cache, record_request_timing
 from backend.utils.token_budget import estimate_tokens
 from backend.retrieval.hybrid_search import ALL_KB_TYPES
+from backend.config import AI_FAILED_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,12 @@ async def classify_intent_node(state: AgentState) -> dict:
     else:
         ai_failed_count = 0
 
+    # 验证 intent 是否在 INTENT_HIERARCHY 顶层 key 中
+    if intent not in INTENT_HIERARCHY:
+        logger.warning(f"LLM 返回未知 intent={intent}，回退到 other")
+        intent = "other"
+        intent_sub_type = "unknown"
+
     # 子类标准化
     normalize_key = (intent, intent_sub_type)
     if normalize_key in _SUB_TYPE_NORMALIZE:
@@ -109,7 +116,6 @@ async def classify_intent_node(state: AgentState) -> dict:
             intent_sub_type = ""
 
     # 连续 N 次失败 → 自动转人工（阈值从配置读取，默认 2）
-    from backend.config import AI_FAILED_THRESHOLD
     if ai_failed_count >= AI_FAILED_THRESHOLD:
         intent = "human_service"
         intent_sub_type = "ai_limitation"

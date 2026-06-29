@@ -194,9 +194,8 @@ def _cleanup_old_backups():
         # 从剩余备份中，每天保留第一个作为每日快照
         daily_keep = set()
         seen_dates = set()
-        date_pattern = re.compile(r"(?:app|chroma)_(\d{8})_\d{6}")
         for f in backups[MAX_HOURLY_BACKUPS:]:
-            # 用正则校验文件名，跳过异常文件名
+            # 用正则校验文件名，跳过异常文件名（复用上方 date_pattern）
             match = date_pattern.match(f.stem)
             if not match:
                 continue

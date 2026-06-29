@@ -69,6 +69,8 @@ async def process_sync(
     if not items:
         return {"processed_count": 0, "deleted_count": deleted}
 
+    # 保存原始 items 引用用于快照（chunk_items 会修改 ID）
+    _original_items = items
     # chunk 处理后写入
     items = chunk_items(items)
     total = len(items)
@@ -144,7 +146,7 @@ async def process_sync(
         from backend.config import MAX_SYNC_BATCH_SIZE
         if len(items) > MAX_SYNC_BATCH_SIZE:
             logger.warning(f"快照截断: items={len(items)}, 仅保留前 {MAX_SYNC_BATCH_SIZE} 条，回滚可能不完整")
-        snapshot = [_build_snapshot_item(item) for item in items[:MAX_SYNC_BATCH_SIZE]]
+        snapshot = [_build_snapshot_item(item) for item in _original_items[:MAX_SYNC_BATCH_SIZE]]
         record_sync_log(
             tenant_id=tenant_id,
             kb_type=kb_type,
@@ -193,6 +195,7 @@ async def process_batch(
     if not items:
         return {"processed_count": 0, "deleted_count": deleted}
 
+    _original_items = items
     items = chunk_items(items)
     total = len(items)
 
@@ -235,7 +238,7 @@ async def process_batch(
 
     # 记录同步日志（含快照，用于回滚）
     from backend.knowledge.sync_log import record_sync_log
-    snapshot = [_build_snapshot_item(item) for item in items[:1000]]
+    snapshot = [_build_snapshot_item(item) for item in _original_items[:MAX_SYNC_BATCH_SIZE]]
     record_sync_log(
         tenant_id=tenant_id,
         kb_type=kb_type,

@@ -10,8 +10,9 @@ from backend.agent.prompts import GENERATE_SYSTEM_PROMPT, GENERATE_USER_PROMPT
 from backend.agent.llm_utils import safe_llm_stream, get_generate_llm
 from backend.agent.retrieval_utils import format_docs_for_llm, clean_answer
 from backend.utils.security import sanitize_output
-from backend.utils.response_cache import get_cached_answer, set_cached_answer, get_cached_intent
+from backend.utils.response_cache import get_cached_answer, set_cached_answer
 from backend.utils.advanced import get_fallback_response
+from backend.config import MIN_ANSWER_LENGTH_CACHE
 from backend.utils.metrics import record_cache
 from backend.utils.token_budget import estimate_tokens
 
@@ -50,7 +51,6 @@ async def generate_answer_node(state: AgentState) -> dict:
     answer = sanitize_output(answer)
 
     # 只要 LLM 生成了有意义回复就缓存（不限于有检索结果时）
-    from backend.config import MIN_ANSWER_LENGTH_CACHE
     if answer and len(answer) > MIN_ANSWER_LENGTH_CACHE:
         set_cached_answer(current_message, tenant_id, answer)
 

@@ -56,7 +56,6 @@ async def create_session(
 
     :return: {"thread_id": str}
     """
-    from backend.utils.auth import get_identity_from_request
     identity = get_identity_from_request(request)
     effective_tenant_id = identity.get("tenant_id", "") or tenant_id
     tenant = _get_tenant(effective_tenant_id, db)
@@ -188,7 +187,7 @@ async def chat_stream(
 
     conversation = _locate_or_create_session(
         session_id=session_id,
-        tenant_id=tenant_id,
+        tenant_id=effective_tenant_id,
         user_id=user_id,
         user_name=user_name,
         channel=channel,

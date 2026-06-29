@@ -36,9 +36,8 @@ async def account_query_node(state: AgentState) -> dict:
                 return {"final_answer": "账户查询服务暂未配置，如需帮助请联系人工客服。"}
             return {"final_answer": "抱歉，暂时无法查询您的账户信息，请稍后重试或联系人工客服。"}
 
+    # membership_level / points_balance 在上方已通过 API 处理并返回
     messages_map = {
-        "membership_level": "正在为您查询会员等级信息，请稍候。",
-        "points_balance": "正在为您查询积分余额，请稍候。",
         "address_manage": '您可以在APP"我的-收货地址"中查看和管理地址信息。',
         "account_security": "账户安全问题需要核实身份，正在为您转接人工客服处理。",
     }
