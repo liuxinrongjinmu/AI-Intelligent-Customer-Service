@@ -119,13 +119,22 @@ def format_order_result(result: dict[str, Any]) -> str:
     if not result.get("success", False):
         return result.get("message", "订单查询失败")
 
-    # data 字段直接是 OrderDetailVO（扁平结构，不再嵌套 fullOrderInfo）
-    data = result.get("data") or {}
-    if not data:
+    # 兼容两种响应结构：
+    # 1. 嵌套结构：{data: {orderNo, status, fullOrderInfo: {title, totalFee, ...}}}
+    # 2. 扁平结构：{data: {orderNo, status, title, totalFee, ...}}
+    raw_data = result.get("data") or {}
+    if not raw_data:
         return "没有找到相关订单，请核实订单号后重试，或联系人工客服协助查询。"
 
-    order_no = data.get("orderNo", "未知")
-    status = _map_order_status(data.get("status", ""))
+    # 若存在 fullOrderInfo，从中读取详细信息
+    full_info = raw_data.get("fullOrderInfo") if isinstance(raw_data, dict) else None
+    if isinstance(full_info, dict) and full_info:
+        data = full_info
+    else:
+        data = raw_data
+
+    order_no = data.get("orderNo", raw_data.get("orderNo", "未知"))
+    status = _map_order_status(data.get("status", raw_data.get("status", "")))
     title = data.get("title", "")
     total_fee = data.get("totalFee", "未知")
     created = data.get("created", "未知")
