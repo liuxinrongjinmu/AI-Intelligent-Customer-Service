@@ -239,17 +239,17 @@ docker-compose logs --tail=100 kefu-agent
 docker-compose logs -f kefu-agent
 
 # 健康检查
-curl http://localhost:8081/api/v1/system/health
+curl http://localhost:8080/api/v1/system/health
 ```
 
 ### 5.2 指标查询
 
 ```powershell
 # 直接获取 Prometheus 格式指标
-curl http://localhost:8081/api/v1/system/metrics
+curl http://localhost:8080/api/v1/system/metrics
 
 # JSON 格式指标（内部监控用）
-curl http://localhost:8081/api/v1/system/metrics?format=json
+curl http://localhost:8080/api/v1/system/metrics?format=json
 
 # 通过 Prometheus API 查询（示例：当前活跃请求数）
 curl "http://localhost:9090/api/v1/query?query=kefu_active_requests"

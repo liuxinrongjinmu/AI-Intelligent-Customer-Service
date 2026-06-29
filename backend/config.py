@@ -64,7 +64,7 @@ class Settings(BaseSettings):
 
     # ─── 服务配置 ─────────────────────────────────────────────────
     host: str = Field(default="127.0.0.1")
-    port: int = Field(default=8081, ge=1, le=65535)
+    port: int = Field(default=8080, ge=1, le=65535)
     swagger_server_url: str = Field(default="")
     enable_docs: bool = Field(default=True)
     admin_api_key: str = Field(default="change-me-admin-key")
@@ -92,7 +92,7 @@ class Settings(BaseSettings):
     nacos_username: str = Field(default="")
     nacos_password: str = Field(default="")
     service_ip: str = Field(default="")
-    service_port: int = Field(default=8081, ge=1, le=65535)
+    service_port: int = Field(default=8080, ge=1, le=65535)
 
     # ─── 业务 API 超时（秒）──────────────────────────────────────
     order_api_timeout: int = Field(default=10, ge=1, le=120)

@@ -1,13 +1,14 @@
 # 数据库设计文档
 
-> 本文档说明 kefu-agent 的 SQLite 数据库结构、索引设计与备份策略。
+> 本文档说明 kefu-agent 的 PostgreSQL 数据库结构、索引设计与备份策略。
 >
 > 相关代码：
 > - 数据库引擎：`backend/database.py`
-> - 配置项：`backend/config.py`（`SQLITE_PATH`）
+> - 配置项：`backend/config.py`（`DATABASE_URL`）
 > - 数据模型：`backend/models/`
 > - 同步日志模型：`backend/knowledge/sync_log.py`
 > - 备份模块：`backend/utils/backup.py`
+> - 迁移工具：`alembic/`
 
 ---
 
@@ -15,32 +16,19 @@
 
 | 项 | 值 |
 |----|----|
-| 数据库类型 | SQLite |
-| 数据库文件路径 | `data/app.db` |
-| 配置变量 | `SQLITE_PATH`（默认 `data/app.db`） |
+| 数据库类型 | PostgreSQL 16 |
+| 连接串配置 | `DATABASE_URL`（必填，如 `postgresql://kefu:kefu_pwd@postgres:5432/kefu_agent`） |
 | ORM 框架 | SQLAlchemy 2.0（DeclarativeBase） |
-| 连接池 | QueuePool（pool_size=5，max_overflow=10，pool_recycle=300s，pool_timeout=30s） |
-| 日志模式 | WAL（Write-Ahead Logging） |
-| 同步模式 | `PRAGMA synchronous=NORMAL` |
-| 忙等超时 | `PRAGMA busy_timeout=5000`（5 秒） |
-| 缓存大小 | `PRAGMA cache_size=-2000`（2MB） |
-
-### 连接初始化
-
-每个新连接建立时执行以下 PRAGMA（见 `backend/database.py`）：
-
-```sql
-PRAGMA journal_mode=WAL;
-PRAGMA busy_timeout=5000;
-PRAGMA synchronous=NORMAL;
-PRAGMA cache_size=-2000;
-```
+| 连接池 | QueuePool（pool_size=10，max_overflow=20，pool_recycle=1800s，pool_timeout=30s，pool_pre_ping=True） |
+| 引擎初始化 | 延迟初始化（`_init_engine()` 首次访问时创建，避免测试环境 import 报错） |
+| Schema 管理 | Alembic 迁移（`alembic/versions/`） + `init_db()`首次启动建表 + `_ensure_indexes()` 补全索引 |
+| 向后兼容 | `SessionLocal`/`engine` 通过模块 `__getattr__` 支持旧 import 路径 |
 
 ---
 
 ## 二、表结构
 
-数据库共 8 张表，均通过 SQLAlchemy 模型定义，由 `init_db()` 自动创建。
+数据库共 9 张表，均通过 SQLAlchemy 模型定义，由 `init_db()` 自动创建。
 
 ### 2.1 tenants — 租户表
 
@@ -58,7 +46,6 @@ PRAGMA cache_size=-2000;
 | `updated_at` | DateTime | default utcnow, onupdate utcnow | 更新时间 |
 
 - 模型文件：`backend/models/tenant.py`
-- API Key 生成：`generate_api_key()` 返回 `(raw, hash, prefix)`，原始 Key 仅在创建时返回一次。
 
 ### 2.2 conversations — 会话表
 
@@ -78,7 +65,7 @@ PRAGMA cache_size=-2000;
 | `tags` | JSON | default list | 标签列表 |
 | `summary` | Text | default "" | 会话摘要 |
 | `context_snapshot` | JSON | default dict | 上下文快照 |
-| `ai_failed_count` | Integer | default 0 | AI 失败次数（连续 2 次转人工） |
+| `ai_failed_count` | Integer | default 0 | AI 失败次数（连续超阈值转人工） |
 | `message_count` | Integer | default 0 | 消息数 |
 | `rating` | Integer | default 0 | 用户评分 |
 | `created_at` | DateTime | index | 创建时间 |
@@ -115,7 +102,7 @@ PRAGMA cache_size=-2000;
 | `id` | Integer | PK, autoincrement | 主键 |
 | `tenant_id` | String(64) | not null, index | 租户 ID |
 | `kb_type` | String(32) | not null | 知识库类型（faq/product/rule/public） |
-| `sync_type` | String(32) | not null | 同步类型（full/incremental） |
+| `sync_type` | String(32) | not null | 同步类型（full/incremental/batch/clear/rollback） |
 | `item_count` | Integer | default 0 | 原始条目数 |
 | `processed_count` | Integer | default 0 | 实际处理数 |
 | `deleted_count` | Integer | default 0 | 删除条目数 |
@@ -262,16 +249,13 @@ Agent 节点调用外部工具（业务 API）的日志记录。
 
 ### 3.3 索引自动补全
 
-`init_db()` 调用 `_ensure_indexes()` 为旧数据库补全缺失索引（见 `backend/database.py`）：
+`init_db()` 调用 `_ensure_indexes()` 为已有表补全缺失索引（使用 PostgreSQL `CREATE INDEX IF NOT EXISTS`）：
 
 | 表 | 补全字段 |
 |----|----------|
 | `conversations` | `created_at`, `ended_at`, `user_id` |
 | `messages` | `created_at` |
-| `feedbacks` | `created_at` |
 | `handoff_tickets` | `created_at` |
-
-补全逻辑：检查现有索引，若字段未被索引则创建 `ix_<table>_<column>` 索引。
 
 ---
 
@@ -282,31 +266,20 @@ Agent 节点调用外部工具（业务 API）的日志记录。
 | 项 | 值 |
 |----|----|
 | 备份模块 | `backend/utils/backup.py` |
-| 备份目录 | `data/backups/` |
-| 备份文件命名 | `app_YYYYMMDD_HHMMSS.db` |
+| 备份命令 | `docker exec kefu-postgres pg_dump -U kefu kefu_agent` |
+| 备份目录 | `data/` |
+| 备份文件命名 | `pg_backup_YYYYMMDD_HHMMSS.sql` |
 | 备份间隔 | 3600 秒（1 小时） |
-| 每小时备份保留数 | 24 个 |
-| 每日快照保留数 | 7 个 |
-| 备份方式 | SQLite `backup` API（保证一致性） |
+| 每小时备份保留数 | 24 个（1 天） |
+| 每日快照保留数 | 7 个（1 周） |
+| 过期清理 | `find data/ -name 'pg_backup_*.sql' -mtime +7 -delete` |
 
-### 4.2 备份保留策略
+### 4.2 备份流程
 
-```
-data/backups/
-├── app_20260622_080000.db   ← 每小时备份（保留最近 24 个）
-├── app_20260622_090000.db
-├── app_20260622_100000.db
-├── ...
-└── app_20260615_000000.db   ← 每日快照（保留最近 7 个）
-```
-
-清理逻辑（`_cleanup_old_backups()`）：
-
-1. 按修改时间倒序排列所有备份文件。
-2. 保留最新的 24 个作为每小时备份。
-3. 从剩余文件中，每天保留第一个作为每日快照。
-4. 每日快照最多保留 7 个，超出则删除最早的。
-5. 既不在每小时保留也不在每日快照中的备份将被删除。
+1. **启动备份**：`backup_now()` 在 FastAPI lifespan 启动时立即执行一次备份。
+2. **定时备份**：`start_backup_scheduler()` 启动后台任务，每小时执行 `pg_dump`。
+3. **部署前备份**：`deploy.py` 在 `docker compose down` 前执行 `pg_dump` 备份。
+4. **过期清理**：每次备份后清理超过 7 天的旧备份文件。
 
 ### 4.3 备份任务管理
 
@@ -314,20 +287,24 @@ data/backups/
 |------|------|
 | `start_backup_scheduler()` | 启动后台备份任务（FastAPI 启动时调用） |
 | `stop_backup_scheduler()` | 停止后台备份任务（FastAPI 关闭时调用） |
-| `backup_now()` | 立即执行一次备份（手动触发） |
-| `_cleanup_old_backups()` | 清理过期备份（每次备份后自动执行） |
+| `backup_now()` | 立即执行一次 `pg_dump` 备份 |
+| `_cleanup_old_backups()` | 清理过期备份（保留 24 个每小时 + 7 个每日） |
 
-### 4.4 手动备份与恢复
+### 4.4 手动恢复
 
-```powershell
-# 手动触发一次备份（Python 交互式）
-python -c "from backend.utils.backup import backup_now; print(backup_now())"
+```bash
+# 登录到部署服务器
+ssh deploy@192.168.0.234
 
-# 恢复数据库（停止服务后操作）
-copy data\backups\app_20260622_080000.db data\app.db
+# 恢复 PostgreSQL 数据库
+cd /home/deploy/kefu_agent
+docker exec -i kefu-postgres psql -U kefu kefu_agent < data/pg_backup_20260629_120000.sql
+
+# 重启服务
+docker compose restart kefu-agent
 ```
 
-> 注意：恢复前必须停止 kefu-agent 服务，避免 WAL 文件冲突。恢复后建议删除 `data/app.db-wal` 和 `data/app.db-shm` 文件。
+> 注意：恢复前建议先对当前数据库做一次备份。恢复后需重启 kefu-agent 以重建连接池。
 
 ---
 
@@ -335,11 +312,9 @@ copy data\backups\app_20260622_080000.db data\app.db
 
 | 路径 | 说明 | 配置变量 |
 |------|------|----------|
-| `data/app.db` | SQLite 主数据库 | `SQLITE_PATH` |
-| `data/app.db-wal` | SQLite WAL 日志文件（自动生成） | - |
-| `data/app.db-shm` | SQLite 共享内存文件（自动生成） | - |
-| `data/chroma_db/` | ChromaDB 向量知识库 | `CHROMA_PATH` |
-| `data/checkpoints.db` | LangGraph 对话检查点 | `CHECKPOINT_PATH` |
-| `data/backups/` | SQLite 备份目录 | - |
+| PostgreSQL 数据库 | 主业务数据库（Docker 容器 `kefu-postgres`） | `DATABASE_URL` |
+| `data/chroma_db/` | ChromaDB 向量知识库（租户级 Collection 隔离） | `CHROMA_PATH` |
+| `data/pg_backup_*.sql` | PostgreSQL 备份文件 | - |
+| `alembic/versions/` | Schema 迁移脚本 | - |
 
-> 备份时建议备份整个 `data/` 目录，以包含数据库、向量库与检查点的完整状态。
+> LangGraph Checkpoint 数据直接存储在 PostgreSQL 中（`langgraph-checkpoint-postgres`），无需额外文件。
