@@ -46,3 +46,11 @@ Thumbs.db
 # Vim
 *.swp
 *.swo
+
+# 内部文档（不纳入版本管理）
+TAPD任务清单.csv
+TAPD任务清单.md
+PROJECT_ANALYSIS_REPORT.md
+方案实施文档.md
+项目需求说明文档.md
+requirements-lock.txt
