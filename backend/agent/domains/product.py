@@ -27,8 +27,9 @@ async def product_query_node(state: AgentState) -> dict:
     entities = state.get("intent_entities", {})
     product_name = entities.get("product_name", "")
     product_id = entities.get("product_id", "")
-
-    search_name = product_name or current_message
+    # 优先用 product_name，回退到 LLM 提取的 search_query（已优化为搜索关键词），最后用原始消息
+    search_query = state.get("search_query", "")
+    search_name = product_name or search_query or current_message
     thread_id = state.get("thread_id", "")
     api_result = await call_and_log(
         tenant_id=tenant_id,
