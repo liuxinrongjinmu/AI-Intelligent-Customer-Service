@@ -134,7 +134,10 @@ def format_order_result(result: dict[str, Any]) -> str:
         data = raw_data
 
     order_no = data.get("orderNo", raw_data.get("orderNo", "未知"))
-    status = _map_order_status(data.get("status", raw_data.get("status", "")))
+    # 优先使用 API 返回的状态中文标签，回退到本地映射
+    raw_status = data.get("status", raw_data.get("status", ""))
+    status_label = data.get("statusLabel", raw_data.get("statusLabel", ""))
+    status = status_label or _map_order_status(raw_status)
     title = data.get("title", "")
     total_fee = data.get("totalFee", "未知")
     created = data.get("created", "未知")
@@ -205,12 +208,15 @@ def _map_order_status(status: str) -> str:
     status_map = {
         "UNPAID": "待付款",
         "PAID": "已付款",
+        "WAIT_SELLER_SEND_GOODS": "待发货",
         "SHIPPED": "已发货",
         "DELIVERED": "已签收",
         "COMPLETED": "已完成",
         "CANCELLED": "已取消",
         "REFUNDING": "退款中",
         "REFUNDED": "已退款",
+        "TRADE_CLOSED": "交易关闭",
+        "WAIT_BUYER_CONFIRM_GOODS": "待收货",
         "pending": "待付款",
         "paid": "已付款",
         "shipped": "已发货",
