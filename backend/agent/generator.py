@@ -50,7 +50,8 @@ async def generate_answer_node(state: AgentState) -> dict:
     answer = sanitize_output(answer)
 
     # 只要 LLM 生成了有意义回复就缓存（不限于有检索结果时）
-    if answer and len(answer) > 10:
+    from backend.config import MIN_ANSWER_LENGTH_CACHE
+    if answer and len(answer) > MIN_ANSWER_LENGTH_CACHE:
         set_cached_answer(current_message, tenant_id, answer)
 
     logger.info(

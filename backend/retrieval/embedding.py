@@ -1,24 +1,56 @@
 """
 Embedding 模型加载：BAAI/bge-small-zh-v1.5
 含查询结果缓存，相同文本直接返回，避免重复推理
+
+线程池策略：
+- 使用专用 ThreadPoolExecutor 执行 CPU 密集型 embedding 推理
+- 避免阻塞 FastAPI 默认线程池（用于其他 I/O 操作）
+- 最大线程数 = 2（推理是 CPU 密集型，过多线程导致上下文切换开销）
 """
 import os
 import time
 import hashlib
 import threading
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from collections import OrderedDict
-from backend.config import EMBEDDING_MODEL, EMBEDDING_DEVICE, HF_ENDPOINT
+from backend.config import EMBEDDING_MODEL, EMBEDDING_DEVICE, HF_ENDPOINT, EMBED_CACHE_MAX_SIZE
 
 _embedding_model = None
 _model_lock = threading.Lock()
 
+# 专用线程池：CPU 密集型 embedding 推理，与默认 I/O 线程池隔离
+_EMBED_MAX_WORKERS = 2
+_embed_executor = None  # type: Optional[ThreadPoolExecutor]
+_embed_executor_lock = threading.Lock()
+
 # Embedding 查询缓存：LRU + TTL
 _embed_cache: OrderedDict[str, tuple[list[float], float]] = OrderedDict()
 _embed_cache_lock = threading.Lock()
-_EMBED_CACHE_MAX_SIZE = 1000
 _EMBED_CACHE_TTL = 600  # 10 分钟
 _last_cache_cleanup = 0.0
 _CACHE_CLEANUP_INTERVAL = 120  # 每 120 秒清理一次过期条目
+
+
+def _get_embed_executor() -> ThreadPoolExecutor:
+    """获取专用 embedding 线程池（懒初始化，线程安全）"""
+    global _embed_executor
+    if _embed_executor is None:
+        with _embed_executor_lock:
+            if _embed_executor is None:
+                _embed_executor = ThreadPoolExecutor(
+                    max_workers=_EMBED_MAX_WORKERS,
+                    thread_name_prefix="embed-"
+                )
+    return _embed_executor
+
+
+def shutdown_embed_executor():
+    """关闭 embedding 线程池（应用关闭时调用）"""
+    global _embed_executor
+    if _embed_executor is not None:
+        _embed_executor.shutdown(wait=True)
+        _embed_executor = None
 
 
 def _cache_key(text: str) -> str:
@@ -90,7 +122,7 @@ def embed_query_cached(query: str) -> list[float]:
         _embed_cache[key] = (result, time.time())
         _embed_cache.move_to_end(key)
         # 超出容量时淘汰最旧的
-        while len(_embed_cache) > _EMBED_CACHE_MAX_SIZE:
+        while len(_embed_cache) > EMBED_CACHE_MAX_SIZE:
             _embed_cache.popitem(last=False)
         # 定期清理过期条目
         _cleanup_expired_cache()
@@ -100,25 +132,31 @@ def embed_query_cached(query: str) -> list[float]:
 
 async def embed_query_cached_async(query: str) -> list[float]:
     """
-    embed_query_cached 的异步包装，不阻塞事件循环
+    embed_query_cached 的异步包装，使用专用线程池不阻塞事件循环
 
     :param query: 查询文本
     :return: 向量列表
     """
-    import asyncio
-    return await asyncio.to_thread(embed_query_cached, query)
+    loop = asyncio.get_running_loop()
+    executor = _get_embed_executor()
+    return await loop.run_in_executor(executor, embed_query_cached, query)
 
 
 async def embed_documents_async(texts: list[str]) -> list[list[float]]:
     """
-    批量 embedding 的异步包装，不阻塞事件循环
+    批量 embedding 的异步包装，使用专用线程池不阻塞事件循环
 
     :param texts: 文本列表
     :return: 向量列表的列表
     """
-    import asyncio
-    model = get_embedding_model()
-    return await asyncio.to_thread(model.embed_documents, texts)
+    loop = asyncio.get_running_loop()
+
+    def _batch_embed():
+        model = get_embedding_model()
+        return model.embed_documents(texts)
+
+    executor = _get_embed_executor()
+    return await loop.run_in_executor(executor, _batch_embed)
 
 
 def embed_documents_sync(texts: list[str]) -> list[list[float]]:
@@ -141,4 +179,4 @@ def clear_embed_cache():
 def embed_cache_stats() -> dict:
     """返回缓存统计信息"""
     with _embed_cache_lock:
-        return {"size": len(_embed_cache), "max_size": _EMBED_CACHE_MAX_SIZE}
+        return {"size": len(_embed_cache), "max_size": EMBED_CACHE_MAX_SIZE}

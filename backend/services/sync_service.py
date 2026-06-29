@@ -141,9 +141,10 @@ async def process_sync(
     # （否则下次 get_last_sync_snapshot 会取到回滚自身的快照，而非原始同步）
     if sync_type != "rollback":
         from backend.knowledge.sync_log import record_sync_log
-        if len(items) > 1000:
-            logger.warning(f"快照截断: items={len(items)}, 仅保留前 1000 条，回滚可能不完整")
-        snapshot = [_build_snapshot_item(item) for item in items[:1000]]
+        from backend.config import MAX_SYNC_BATCH_SIZE
+        if len(items) > MAX_SYNC_BATCH_SIZE:
+            logger.warning(f"快照截断: items={len(items)}, 仅保留前 {MAX_SYNC_BATCH_SIZE} 条，回滚可能不完整")
+        snapshot = [_build_snapshot_item(item) for item in items[:MAX_SYNC_BATCH_SIZE]]
         record_sync_log(
             tenant_id=tenant_id,
             kb_type=kb_type,

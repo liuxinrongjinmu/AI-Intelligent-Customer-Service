@@ -8,7 +8,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-MAX_MESSAGE_LENGTH = 4000
+from backend.config import MAX_MESSAGE_LENGTH
 
 INJECTION_PATTERNS = [
     r'(?i)ignore\s+(all\s+)?(previous|above|prior)\s+instructions?',

@@ -20,8 +20,8 @@ from backend.database import init_db
 from backend.config import HOST, PORT, validate_config, SWAGGER_SERVER_URL, ENV, ENABLE_DOCS, ALLOWED_ORIGINS
 from backend.utils.json_logger import setup_logging
 
-# 请求体大小限制（防护大请求攻击）
-MAX_BODY_SIZE = 10 * 1024 * 1024  # 10MB
+# 请求体大小限制（防护大请求攻击，从配置读取，默认 10MB）
+from backend.config import MAX_BODY_SIZE
 from backend.api.tenant import router as tenant_router
 from backend.api.knowledge import router as knowledge_router
 from backend.api.chat import router as chat_router
@@ -82,6 +82,10 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
     """
     请求体大小限制中间件：防止大请求攻击（如知识同步接口传入超大 payload）
 
+    双重防护：
+    1. Content-Length 头检查（快速拦截，O(1) 开销）
+    2. 流式读取累计检查（无 Content-Length 头时防止绕过）
+
     默认限制 10MB，可通过环境变量 MAX_BODY_SIZE 调整（单位：字节）
     """
 
@@ -91,6 +95,7 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         if request.method in ("POST", "PUT", "PATCH"):
+            # 第一层：Content-Length 头快速拦截
             content_length = request.headers.get("content-length", "")
             if content_length and int(content_length) > self._max_size:
                 return Response(
@@ -98,7 +103,40 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
                     status_code=413,
                     media_type="application/json",
                 )
+
+            # 第二层：流式读取累计大小检查（防止无 Content-Length 头绕过）
+            if not content_length:
+                original_receive = request.receive
+                total_bytes = 0
+
+                async def size_checked_receive():
+                    nonlocal total_bytes
+                    message = await original_receive()
+                    if message.get("type") == "http.request":
+                        body = message.get("body", b"")
+                        total_bytes += len(body)
+                        if total_bytes > self._max_size:
+                            logger.warning(
+                                f"请求体超限（流式检测）: "
+                                f"bytes={total_bytes} > limit={self._max_size}, "
+                                f"path={request.url.path}"
+                            )
+                            # 返回一个空消息并设置断开标记
+                            # 通过注入自定义异常来中止请求处理
+                            raise _RequestBodyTooLarge(
+                                f"请求体过大 ({total_bytes} > {self._max_size})，"
+                                f"请减少数据量后重试"
+                            )
+                    return message
+
+                request._receive = size_checked_receive
+
         return await call_next(request)
+
+
+class _RequestBodyTooLarge(Exception):
+    """请求体过大异常（内部使用）"""
+    pass
 
 
 @asynccontextmanager
@@ -146,6 +184,9 @@ async def lifespan(app: FastAPI):
     # 关闭检索线程池
     from backend.retrieval.hybrid_search import shutdown_retrieval_executor
     shutdown_retrieval_executor()
+    # 关闭 Embedding 专用线程池
+    from backend.retrieval.embedding import shutdown_embed_executor
+    shutdown_embed_executor()
     logger.info("应用关闭")
 
 
@@ -202,6 +243,20 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={
             "code": "VALIDATION_ERROR",
             "message": str(exc.errors()),
+            "request_id": get_request_id(),
+        },
+    )
+
+
+@app.exception_handler(_RequestBodyTooLarge)
+async def body_too_large_handler(request: Request, exc: _RequestBodyTooLarge):
+    """请求体过大异常 → 413 响应"""
+    logger.warning(f"请求体过大: {request.url.path}, detail={exc}")
+    return JSONResponse(
+        status_code=413,
+        content={
+            "code": "REQUEST_TOO_LARGE",
+            "message": str(exc),
             "request_id": get_request_id(),
         },
     )

@@ -1,8 +1,6 @@
 """
 意图分类节点：意图识别 + 指代消解 + 路由分发
 """
-import json
-import re
 import time
 import logging
 from typing import Literal
@@ -65,12 +63,10 @@ async def classify_intent_node(state: AgentState) -> dict:
         fallback_text='{"intent":"other","intent_sub_type":"unknown","entities":{},"coref_resolved":"","search_query":""}'
     )
 
-    try:
-        content = raw_response.strip()
-        if content.startswith("```"):
-            content = re.sub(r'^```(?:json)?\s*', '', content)
-            content = re.sub(r'\s*```\s*$', '', content)
-        result = json.loads(content)
+    from backend.utils.helpers import robust_json_parse
+
+    result = robust_json_parse(raw_response)
+    if result:
         intent = result.get("intent", "other")
         intent_sub_type = result.get("intent_sub_type", "")
         entities = result.get("entities", {})
@@ -82,7 +78,7 @@ async def classify_intent_node(state: AgentState) -> dict:
         valid_kb_types = [kb for kb in suggested_kb_types if kb in ALL_KB_TYPES]
         if not valid_kb_types:
             valid_kb_types = ALL_KB_TYPES
-    except (json.JSONDecodeError, AttributeError):
+    else:
         intent = "other"
         intent_sub_type = "unknown"
         entities = {}
@@ -112,8 +108,9 @@ async def classify_intent_node(state: AgentState) -> dict:
         else:
             intent_sub_type = ""
 
-    # 连续 2 次失败 → 自动转人工
-    if ai_failed_count >= 2:
+    # 连续 N 次失败 → 自动转人工（阈值从配置读取，默认 2）
+    from backend.config import AI_FAILED_THRESHOLD
+    if ai_failed_count >= AI_FAILED_THRESHOLD:
         intent = "human_service"
         intent_sub_type = "ai_limitation"
         logger.warning(f"AI连续失败 {ai_failed_count} 次，自动转人工")

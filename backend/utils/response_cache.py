@@ -17,8 +17,8 @@ from threading import Lock
 
 logger = logging.getLogger(__name__)
 
-INTENT_CACHE_MAX_SIZE = 500
-ANSWER_CACHE_MAX_SIZE = 200
+from backend.config import INTENT_CACHE_MAX_SIZE, ANSWER_CACHE_MAX_SIZE
+
 INTENT_CACHE_TTL = 300
 ANSWER_CACHE_TTL = 600
 

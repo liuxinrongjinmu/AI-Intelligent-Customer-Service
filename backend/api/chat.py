@@ -30,9 +30,9 @@ from backend.utils.request_id import get_request_id
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/chat", tags=["消费者聊天"])
+from backend.config import SSE_TOTAL_TIMEOUT
 
-SSE_TOTAL_TIMEOUT = 120  # SSE 流式总超时（秒）
+router = APIRouter(prefix="/api/v1/chat", tags=["消费者聊天"])
 
 
 @router.post("/{tenant_id}/new")

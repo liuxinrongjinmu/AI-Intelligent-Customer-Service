@@ -115,6 +115,25 @@ class Settings(BaseSettings):
     redis_password: str = Field(default="")
     rate_limit_window: int = Field(default=60, ge=10, le=3600)
 
+    # ─── Agent 行为阈值 ──────────────────────────────────────────
+    # AI连续识别失败多少次后自动转人工（避免无限循环）
+    ai_failed_threshold: int = Field(default=2, ge=1, le=10)
+    # AI回答最短长度（字符），低于此值不缓存
+    min_answer_length_cache: int = Field(default=10, ge=1, le=100)
+    # 请求体最大大小（字节），可通过 MAX_BODY_SIZE 环境变量覆盖
+    max_body_size: int = Field(default=10 * 1024 * 1024, ge=1024, le=100 * 1024 * 1024)
+    # SSE 流式连接总超时（秒）
+    sse_total_timeout: int = Field(default=120, ge=30, le=600)
+    # 知识库同步单批最大条目数
+    max_sync_batch_size: int = Field(default=1000, ge=1, le=10000)
+    # 用户消息最大长度（字符）
+    max_message_length: int = Field(default=4000, ge=100, le=50000)
+
+    # ─── 缓存容量 ──────────────────────────────────────────────────
+    intent_cache_max_size: int = Field(default=500, ge=50, le=10000)
+    answer_cache_max_size: int = Field(default=200, ge=50, le=10000)
+    embed_cache_max_size: int = Field(default=1000, ge=100, le=50000)
+
 
 # ─── 全局单例 ────────────────────────────────────────────────────
 
@@ -262,6 +281,19 @@ TENANT_ID_MAP: str = settings.tenant_id_map
 REDIS_URL: str = settings.redis_url
 REDIS_PASSWORD: str = settings.redis_password
 RATE_LIMIT_WINDOW: int = settings.rate_limit_window
+
+# ─── Agent 行为阈值 ─────────────────────────────────────────
+AI_FAILED_THRESHOLD: int = settings.ai_failed_threshold
+MIN_ANSWER_LENGTH_CACHE: int = settings.min_answer_length_cache
+MAX_BODY_SIZE: int = settings.max_body_size
+SSE_TOTAL_TIMEOUT: int = settings.sse_total_timeout
+MAX_SYNC_BATCH_SIZE: int = settings.max_sync_batch_size
+MAX_MESSAGE_LENGTH: int = settings.max_message_length
+
+# ─── 缓存容量 ────────────────────────────────────────────────
+INTENT_CACHE_MAX_SIZE: int = settings.intent_cache_max_size
+ANSWER_CACHE_MAX_SIZE: int = settings.answer_cache_max_size
+EMBED_CACHE_MAX_SIZE: int = settings.embed_cache_max_size
 
 
 # ─── 校验函数 ────────────────────────────────────────────────────
