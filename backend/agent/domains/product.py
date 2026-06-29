@@ -27,10 +27,14 @@ async def product_query_node(state: AgentState) -> dict:
     entities = state.get("intent_entities", {})
     product_name = entities.get("product_name", "")
     product_id = entities.get("product_id", "")
-    # 优先用 product_name，回退到 LLM 提取的 search_query（已优化为搜索关键词），最后用原始消息
+    # 优先用 product_name，回退到 LLM 提取的 search_query 简短版，最后用原始消息
     search_query = state.get("search_query", "")
-    search_name = product_name or search_query or current_message
+    # search_query 是多词格式（如"椰水 商品"），取第一个词作为搜索关键词
+    short_query = search_query.split()[0] if search_query else ""
+    search_name = product_name or short_query or current_message
     thread_id = state.get("thread_id", "")
+
+    # 尝试第一次搜索
     api_result = await call_and_log(
         tenant_id=tenant_id,
         tool_name="query_product",
@@ -43,7 +47,22 @@ async def product_query_node(state: AgentState) -> dict:
         conversation_id=thread_id,
     )
 
-    if api_result.get("success", False):
+    # 如果短词搜索没结果且没用 product_name，尝试用原始消息再搜一次
+    if (not api_result.get("success") or api_result.get("total", 0) == 0) and not product_name and short_query:
+        logger.info(f"商品短词搜索无结果: {short_query}, 尝试完整搜索词: {search_query}")
+        api_result = await call_and_log(
+            tenant_id=tenant_id,
+            tool_name="query_product_retry",
+            tool_params={
+                "tenant_id": tenant_id,
+                "product_name": search_query,
+                "product_id": product_id,
+            },
+            func=query_product,
+            conversation_id=thread_id,
+        )
+
+    if api_result.get("success", False) and api_result.get("total", 0) > 0:
         formatted = format_product_result(api_result)
         logger.info(f"商品查询成功: tenant={tenant_id}, total={api_result.get('total', 0)}")
         return {"final_answer": formatted}
