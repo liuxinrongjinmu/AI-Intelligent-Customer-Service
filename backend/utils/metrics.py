@@ -106,7 +106,7 @@ _uptime_gauge = Gauge(
 # ─── 采集函数（在中间件/业务代码中调用） ────────────────────────────────
 
 
-def mark_request_start():
+def mark_request_start() -> None:
     """标记请求开始时间"""
     _request_start_time.set(time.time())
 
@@ -117,7 +117,7 @@ def _get_request_latency_ms() -> float:
     return (time.time() - start) * 1000 if start > 0 else 0
 
 
-def record_request(method: str, path: str, status_code: int, latency_ms: float):
+def record_request(method: str, path: str, status_code: int, latency_ms: float) -> None:
     """
     记录一次 HTTP 请求
 
@@ -130,22 +130,22 @@ def record_request(method: str, path: str, status_code: int, latency_ms: float):
     _request_duration.labels(method=method, path=path).observe(latency_ms)
 
 
-def increment_active():
+def increment_active() -> None:
     """活跃请求数 +1"""
     _active_requests.inc()
 
 
-def decrement_active():
+def decrement_active() -> None:
     """活跃请求数 -1"""
     _active_requests.dec()
 
 
-def record_chat_message():
+def record_chat_message() -> None:
     """记录一条聊天消息"""
     _chat_message_count.inc()
 
 
-def record_llm_call(node_name: str):
+def record_llm_call(node_name: str) -> None:
     """
     记录一次 LLM 调用
 
@@ -154,7 +154,7 @@ def record_llm_call(node_name: str):
     _llm_call_count.labels(node=node_name).inc()
 
 
-def record_error(error_type: str):
+def record_error(error_type: str) -> None:
     """
     记录一次错误
 
@@ -163,7 +163,7 @@ def record_error(error_type: str):
     _error_count.labels(type=error_type).inc()
 
 
-def record_cache(hit: bool):
+def record_cache(hit: bool) -> None:
     """
     记录缓存命中/未命中
 
@@ -172,7 +172,7 @@ def record_cache(hit: bool):
     _cache_count.labels(result="hit" if hit else "miss").inc()
 
 
-def record_retrieval(has_results: bool):
+def record_retrieval(has_results: bool) -> None:
     """
     记录检索结果
 
@@ -181,12 +181,12 @@ def record_retrieval(has_results: bool):
     _retrieval_count.labels(result="found" if has_results else "empty").inc()
 
 
-def record_handoff():
+def record_handoff() -> None:
     """记录转人工次数"""
     _handoff_count.inc()
 
 
-def record_request_timing(elapsed: float, intent: str = ""):
+def record_request_timing(elapsed: float, intent: str = "") -> None:
     """
     记录意图分类耗时及计数
 
@@ -198,7 +198,7 @@ def record_request_timing(elapsed: float, intent: str = ""):
     _timing_count.labels(intent=intent if intent else "total").inc()
 
 
-def record_ab_variant(variant: str):
+def record_ab_variant(variant: str) -> None:
     """
     记录 A/B 测试分桶命中
 

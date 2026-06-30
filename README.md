@@ -584,8 +584,8 @@ docker-compose exec kefu-agent python -m backend.seed
 
 ### 生产环境注意事项
 
-1. **必须修改默认密钥**：修改 `ADMIN_API_KEY`
-2. **配置 JWT 认证**：设置 `GATEWAY_AUTH_MODE=jwt`，配置 `JWT_SECRET` 与聚宝赞 Nacos 一致
+1. **必须修改默认密钥**：修改 `ADMIN_API_KEY`，生产环境使用默认弱密钥将拒绝启动
+2. **配置认证模式**：通过 `GATEWAY_AUTH_MODE` 选择 `jwt`/`static`/`both`（默认 `both`）。若启用 JWT（`jwt`/`both` 模式），必须配置 `JWT_SECRET` 与聚宝赞 Nacos 一致——生产环境 `JWT_SECRET` 为空将拒绝启动，运行时为空将拒绝验签（不跳过）
 3. **CORS 配置**：通过 `ALLOWED_ORIGINS` 环境变量配置允许的跨域来源
 4. **资源限制**：docker-compose 已配置 CPU 2核 / 内存 2G 上限
 5. **健康检查**：`/api/v1/system/health` 端点可用于负载均衡器探活

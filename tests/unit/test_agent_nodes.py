@@ -7,12 +7,13 @@ import pytest
 import asyncio
 from unittest.mock import patch, AsyncMock, MagicMock
 
-from backend.agent.nodes import _safe_llm_invoke, route_by_intent
+from backend.agent.llm_utils import safe_llm_invoke
+from backend.agent.classifier import route_by_intent
 from backend.agent.state import INTENT_HIERARCHY
 
 
 class TestSafeLlmInvoke:
-    """_safe_llm_invoke 函数测试"""
+    """safe_llm_invoke 函数测试"""
 
     @pytest.mark.asyncio
     async def test_success_returns_content(self):
@@ -22,7 +23,7 @@ class TestSafeLlmInvoke:
         mock_response.content = "您好，有什么可以帮您？"
         mock_llm.ainvoke.return_value = mock_response
 
-        result = await _safe_llm_invoke(mock_llm, [], node_name="test")
+        result = await safe_llm_invoke(mock_llm, [], node_name="test")
         assert result == "您好，有什么可以帮您？"
 
     @pytest.mark.asyncio
@@ -31,7 +32,7 @@ class TestSafeLlmInvoke:
         mock_llm = AsyncMock()
         mock_llm.ainvoke.return_value = "plain string response"
 
-        result = await _safe_llm_invoke(mock_llm, [], node_name="test")
+        result = await safe_llm_invoke(mock_llm, [], node_name="test")
         assert result == "plain string response"
 
     @pytest.mark.asyncio
@@ -43,7 +44,7 @@ class TestSafeLlmInvoke:
         mock_llm.ainvoke.side_effect = [Exception("network error"), mock_response]
 
         with patch("backend.agent.llm_utils.asyncio.sleep", new_callable=AsyncMock):
-            result = await _safe_llm_invoke(mock_llm, [], node_name="test")
+            result = await safe_llm_invoke(mock_llm, [], node_name="test")
         assert result == "重试成功"
         assert mock_llm.ainvoke.call_count == 2
 
@@ -54,7 +55,7 @@ class TestSafeLlmInvoke:
         mock_llm.ainvoke.side_effect = Exception("persistent error")
 
         with patch("backend.agent.llm_utils.asyncio.sleep", new_callable=AsyncMock):
-            result = await _safe_llm_invoke(
+            result = await safe_llm_invoke(
                 mock_llm, [], fallback_text="兜底回复", node_name="test"
             )
         assert result == "兜底回复"
@@ -67,7 +68,7 @@ class TestSafeLlmInvoke:
         mock_llm.ainvoke.side_effect = Exception("error")
 
         with patch("backend.agent.llm_utils.asyncio.sleep", new_callable=AsyncMock):
-            result = await _safe_llm_invoke(mock_llm, [], node_name="test")
+            result = await safe_llm_invoke(mock_llm, [], node_name="test")
         assert "抱歉" in result or "不可用" in result
 
     @pytest.mark.asyncio
@@ -77,7 +78,7 @@ class TestSafeLlmInvoke:
         mock_llm.ainvoke.side_effect = [Exception("error"), Exception("error"), Exception("error")]
 
         with patch("backend.agent.llm_utils.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            await _safe_llm_invoke(mock_llm, [], node_name="test")
+            await safe_llm_invoke(mock_llm, [], node_name="test")
             # 验证 sleep 被调用了 2 次（第1次和第2次失败后）
             assert mock_sleep.call_count == 2
             # 第1次 sleep(1), 第2次 sleep(2)

@@ -209,7 +209,7 @@ class TestBodySizeLimitMiddleware:
         return BodySizeLimitMiddleware(app, max_size=1024)  # 1KB limit
 
     @pytest.fixture
-    async def client(self):
+    def client(self):
         """创建测试用的 ASGI 客户端"""
         from fastapi import FastAPI
         from fastapi.testclient import TestClient

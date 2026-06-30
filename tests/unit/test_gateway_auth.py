@@ -357,3 +357,56 @@ class TestGatewayAuth:
         )
         result2 = await verify_gateway_request(req2)
         assert result2 == "static_authed"
+
+
+# ---------------------------------------------------------------------------
+# JWT_SECRET 安全测试
+# ---------------------------------------------------------------------------
+
+class TestJwtSecretSecurity:
+    """JWT_SECRET 未配置时的安全行为测试"""
+
+    def test_verify_jwt_token_empty_secret_raises(self, monkeypatch):
+        """JWT_SECRET 为空时 verify_jwt_token 抛出 HTTPException(500)，不跳过验签"""
+        monkeypatch.setattr(gateway_auth, "JWT_SECRET", "")
+        with pytest.raises(HTTPException) as exc_info:
+            gateway_auth.verify_jwt_token("some.token.here")
+        assert exc_info.value.status_code == 500
+        assert exc_info.value.detail["code"] == "AUTH_CONFIG_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_jwt_mode_empty_secret_with_token_rejected(self, monkeypatch):
+        """jwt 模式下 JWT_SECRET 为空 + Bearer token → 500（拒绝，不绕过）"""
+        monkeypatch.setattr(gateway_auth, "GATEWAY_AUTH_MODE", "jwt")
+        monkeypatch.setattr(gateway_auth, "JWT_SECRET", "")
+        monkeypatch.setattr(gateway_auth, "GATEWAY_TRUST_HEADERS", True)
+
+        req = _make_mock_request(
+            headers={"Authorization": "Bearer some.token.here"},
+            client_host="10.0.0.1",
+        )
+        with pytest.raises(HTTPException) as exc_info:
+            await verify_gateway_request(req)
+        assert exc_info.value.status_code == 500
+        assert exc_info.value.detail["code"] == "AUTH_CONFIG_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_both_mode_empty_secret_fallback_to_static(self, monkeypatch):
+        """both 模式下 JWT_SECRET 为空 → JWT 失败后回退到 static 认证"""
+        monkeypatch.setattr(gateway_auth, "GATEWAY_AUTH_MODE", "both")
+        monkeypatch.setattr(gateway_auth, "JWT_SECRET", "")
+        monkeypatch.setattr(gateway_auth, "GATEWAY_TRUST_HEADERS", True)
+        monkeypatch.setattr(gateway_auth, "GATEWAY_IP_WHITELIST", "10.0.0.0/8")
+        monkeypatch.setattr(gateway_auth, "GATEWAY_VERIFIED_HEADER", "X-Gateway-Verified")
+        monkeypatch.setattr(gateway_auth, "GATEWAY_VERIFIED_VALUE", "true")
+        _reset_ip_whitelist_cache()
+
+        req = _make_mock_request(
+            headers={
+                "Authorization": "Bearer some.token.here",
+                "X-Gateway-Verified": "true",
+            },
+            client_host="10.0.0.1",
+        )
+        result = await verify_gateway_request(req)
+        assert result == "static_authed"

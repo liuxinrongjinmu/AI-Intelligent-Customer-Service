@@ -25,12 +25,10 @@ from backend.config import DATABASE_URL
 logger = logging.getLogger(__name__)
 
 from backend.agent.state import AgentState
-from backend.agent.nodes import (
-    classify_intent_node,
-    route_by_intent,
-    retrieve_knowledge_node,
-    generate_answer_node,
-    greeting_answer_node,
+from backend.agent.classifier import classify_intent_node, route_by_intent
+from backend.agent.retriever import retrieve_knowledge_node
+from backend.agent.generator import generate_answer_node, greeting_answer_node
+from backend.agent.domains import (
     order_query_node,
     complaint_node,
     human_service_node,

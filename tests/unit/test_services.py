@@ -120,7 +120,7 @@ class TestMapOrderStatus:
 class TestHandoffService:
     """转人工工单服务"""
 
-    @patch("backend.services.handoff_service.SessionLocal")
+    @patch("backend.services.handoff_service.get_db_session")
     def test_create_handoff_ticket_success(self, mock_session_local):
         """创建工单成功"""
         mock_db = MagicMock()
@@ -138,7 +138,7 @@ class TestHandoffService:
         assert mock_db.add.called
         assert mock_db.commit.called
 
-    @patch("backend.services.handoff_service.SessionLocal")
+    @patch("backend.services.handoff_service.get_db_session")
     def test_create_handoff_ticket_db_error(self, mock_session_local):
         """数据库异常时不抛出"""
         mock_db = MagicMock()
@@ -154,7 +154,7 @@ class TestHandoffService:
         )
         assert "error" in result or result.get("success") is False
 
-    @patch("backend.services.handoff_service.SessionLocal")
+    @patch("backend.services.handoff_service.get_db_session")
     def test_resolve_handoff_ticket(self, mock_session_local):
         """解决工单"""
         mock_db = MagicMock()

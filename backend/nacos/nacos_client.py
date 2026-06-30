@@ -14,6 +14,7 @@ import time
 from typing import Optional
 import httpx
 from backend.middleware.http_client import get_shared_client
+from backend.config import NACOS_TOTAL_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +163,11 @@ async def nacos_request(
     discovery = get_service_discovery()
 
     last_error = None
+    start_time = time.time()
     for attempt in range(_MAX_RETRIES):
+        # 总超时控制：防止实例级重试 × service 层重试导致数十秒阻塞
+        if time.time() - start_time > NACOS_TOTAL_TIMEOUT:
+            raise Exception(f"服务 {service_name} 请求总超时（>{NACOS_TOTAL_TIMEOUT}s），最后错误: {last_error}")
         base_url = discovery.get_base_url(service_name)
         if not base_url:
             raise Exception(f"服务 {service_name} 无可用实例（Nacos 中未发现健康实例）")

@@ -174,27 +174,7 @@ def format_order_result(result: dict[str, Any]) -> str:
     if sub_orders:
         lines.append("\n子订单：")
         for i, sub in enumerate(sub_orders):
-            product_name = sub.get("productName", "")
-            spec_name = sub.get("specName", "")
-            quantity = sub.get("quantity", "")
-            price = sub.get("price", "")
-            shipping_status = sub.get("shippingStatus", "")
-            sub_order_no = sub.get("subOrderNo", "")
-
-            sub_line = f"  [{i + 1}] {product_name}"
-            if spec_name:
-                sub_line += f"（{spec_name}）"
-            sub_line += f" × {quantity}  ¥{price}"
-            if shipping_status:
-                sub_line += f"  发货状态：{shipping_status}"
-            if sub_order_no:
-                sub_line = f"  [{i + 1}] 子订单号：{sub_order_no}  {product_name}"
-                if spec_name:
-                    sub_line += f"（{spec_name}）"
-                sub_line += f" × {quantity}  ¥{price}"
-                if shipping_status:
-                    sub_line += f"  发货状态：{shipping_status}"
-            lines.append(sub_line)
+            lines.append(_format_order_line(sub, i + 1))
 
     return "\n".join(lines)
 
@@ -227,3 +207,146 @@ def _map_order_status(status: str) -> str:
         "refunded": "已退款",
     }
     return status_map.get(status, str(status))
+
+
+def _format_order_line(order: dict, index: int) -> str:
+    """
+    格式化单个子订单为一行文本（主订单和子订单共用）
+
+    :param order: 订单数据字典
+    :param index: 序号（从1开始）
+    :return: 格式化后的行文本
+    """
+    product_name = order.get("productName", "")
+    spec_name = order.get("specName", "")
+    quantity = order.get("quantity", "")
+    price = order.get("price", "")
+    shipping_status = order.get("shippingStatus", "")
+    sub_order_no = order.get("subOrderNo", "")
+
+    if sub_order_no:
+        line = f"  [{index}] 子订单号：{sub_order_no}  {product_name}"
+    else:
+        line = f"  [{index}] {product_name}"
+    if spec_name:
+        line += f"（{spec_name}）"
+    line += f" × {quantity}  ¥{price}"
+    if shipping_status:
+        line += f"  发货状态：{shipping_status}"
+    return line
+
+
+# ─── 订单列表查询 ──────────────────────────────────────────────────────
+
+
+@retry_on_transient_error(max_retries=2)
+async def _do_query_order_list(
+    tenant_id: str, user_id: str, page: int = 1, page_size: int = 10
+) -> dict[str, Any]:
+    """
+    执行订单列表查询 HTTP 请求（含重试）
+
+    POST /api/v1/ext-merchant/order-list
+    请求: OrderListQueryDTO {tenantId, userId, page, pageSize}
+    响应: ResultOrderListVO {code, data: {list: [...], total: int}, success}
+
+    :param tenant_id: 租户ID
+    :param user_id: 用户ID
+    :param page: 页码（从1开始）
+    :param page_size: 每页条数
+    :return: API 响应 JSON
+    """
+    body: dict[str, Any] = {
+        "tenantId": resolve_tenant_id(tenant_id),
+        "userId": user_id,
+        "page": page,
+        "pageSize": page_size,
+    }
+    headers = {"Content-Type": "application/json"}
+
+    response = await nacos_request(
+        "POST",
+        service_name=ORDER_SERVICE_NAME,
+        path=ORDER_LIST_PATH,
+        json_data=body,
+        headers=headers,
+        timeout=httpx.Timeout(ORDER_API_TIMEOUT),
+    )
+    return response.json()
+
+
+async def query_order_list(
+    tenant_id: str,
+    user_id: str = "",
+    page: int = 1,
+    page_size: int = 10,
+) -> dict[str, Any]:
+    """
+    查询订单列表，调用聚宝赞 order-list 接口
+
+    :param tenant_id: 租户ID
+    :param user_id: 用户ID
+    :param page: 页码（从1开始）
+    :param page_size: 每页条数
+    :return: {"success": bool, "data": dict | None, "message": str}
+    """
+    if not user_id:
+        return {"success": False, "data": None, "message": "无法获取用户信息，请提供用户ID以查询订单列表"}
+
+    try:
+        result = await _do_query_order_list(tenant_id, user_id, page, page_size)
+        return {
+            "success": result.get("success", False),
+            "data": result.get("data"),
+            "message": result.get("message", ""),
+        }
+    except httpx.TimeoutException:
+        logger.error(f"订单列表查询超时: tenant={tenant_id}, user={user_id}")
+        return {"success": False, "data": None, "message": "订单查询超时，请稍后重试"}
+    except httpx.HTTPStatusError as e:
+        logger.error(f"订单列表查询HTTP错误: tenant={tenant_id}, status={e.response.status_code}")
+        return {"success": False, "data": None, "message": f"订单查询服务异常（{e.response.status_code}），请联系管理员"}
+    except Exception as e:
+        logger.error(f"订单列表查询异常: tenant={tenant_id}, error={e}")
+        return {"success": False, "data": None, "message": "订单查询服务暂时不可用，请稍后重试或联系人工客服"}
+
+
+def format_order_list_result(result: dict[str, Any]) -> str:
+    """
+    将订单列表查询结果格式化为人类可读的文本
+
+    :param result: query_order_list 返回的结果字典
+    :return: 格式化后的文本
+    """
+    if not result.get("success", False):
+        return result.get("message", "订单查询失败")
+
+    data = result.get("data") or {}
+    if not data:
+        return "没有找到相关订单记录。"
+
+    orders = data.get("list") or data.get("orders") or []
+    if not orders:
+        return "您近期没有订单记录。"
+
+    total = data.get("total", len(orders))
+    lines = [f"共找到 {total} 笔订单：\n"]
+
+    for i, order in enumerate(orders):
+        order_no = order.get("orderNo", "未知")
+        title = order.get("title", "")
+        total_fee = order.get("totalFee", "未知")
+        raw_status = order.get("status", "")
+        status_label = order.get("statusLabel", "")
+        status = status_label or _map_order_status(raw_status)
+        created = order.get("created", "未知")
+
+        lines.append(f"[{i + 1}] 订单号：{order_no}")
+        if title:
+            lines.append(f"    商品：{title}")
+        lines.append(f"    金额：¥{total_fee}")
+        lines.append(f"    状态：{status}")
+        lines.append(f"    下单时间：{created}")
+        lines.append("")
+
+    return "\n".join(lines)

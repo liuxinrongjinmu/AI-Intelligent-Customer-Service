@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import Request, HTTPException, Depends
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from backend.database import SessionLocal, get_db
+from backend.database import get_db_session, get_db
 from backend.models.tenant import Tenant, hash_api_key
 
 logger = logging.getLogger(__name__)
@@ -92,7 +92,7 @@ def _ensure_db_session(db=None):
     if db is not None:
         yield db
     else:
-        with SessionLocal() as session:
+        with get_db_session() as session:
             yield session
 
 

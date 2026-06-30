@@ -1,1 +1,58 @@
-Generic single-database configuration.
+# Alembic 数据库迁移管理
+
+## 概述
+
+本项目使用 Alembic 管理 PostgreSQL 数据库 schema 变更。
+初始迁移脚本: 704e3b270796_initial_schema.py（8张表：tenants, conversations, messages, tool_call_logs, faqs, documents, handoff_tickets, sync_logs）
+
+## 常用命令
+
+# 迁移到最新版本
+alembic upgrade head
+
+# 回滚一个版本
+alembic downgrade -1
+
+# 查看当前版本
+alembic current
+
+# 查看迁移历史
+alembic history --verbose
+
+# 创建新迁移（自动检测 ORM 模型变化）
+alembic revision --autogenerate -m "描述变更内容"
+
+# 手动创建空迁移
+alembic revision -m "描述变更内容"
+
+## 迁移开发规范
+
+1. 创建迁移后必须检查 upgrade() 和 downgrade() 函数，确认：
+   - 表名、列名与 ORM 模型完全一致
+   - 数据类型正确（String 长度、Integer/BigInteger、Boolean 等）
+   - 索引和外键约束正确
+   - downgrade() 能正确回滚 upgrade() 的变更
+
+2. 生产环境迁移前必须：
+   - 在测试环境验证迁移可正常执行
+   - 确认 downgrade() 可正常回滚
+   - 备份生产数据库
+
+3. 迁移文件命名: {revision}_{description}.py
+   - description 用英文下划线命名，如 add_user_feedback_table
+
+## 与 init_db() 的关系
+
+- init_db()（backend/database.py）使用 Base.metadata.create_all() 创建表，仅用于首次初始化
+- Alembic 迁移用于管理后续 schema 变更（新增表、列、索引等）
+- 生产环境必须使用 Alembic 迁移，不使用 create_all()
+
+## 当前迁移版本
+
+- 704e3b270796: initial_schema（初始 8 张表）
+
+## 配置
+
+- alembic.ini: 主配置文件（sqlalchemy.url 在运行时由 env.py 从 DATABASE_URL 环境变量覆盖）
+- env.py: 迁移环境配置（自动从 backend.models 导入所有 ORM 模型）
+- versions/: 迁移脚本目录

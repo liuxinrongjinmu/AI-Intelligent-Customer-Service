@@ -2,7 +2,7 @@
 转人工工单服务
 """
 import logging
-from backend.database import SessionLocal
+from backend.database import get_db_session
 from backend.models.handoff import HandoffTicket
 from backend.utils.helpers import utcnow
 
@@ -41,7 +41,7 @@ def create_handoff_ticket(
     :return: 工单信息
     """
     try:
-        with SessionLocal() as db:
+        with get_db_session() as db:
             ticket = HandoffTicket(
                 tenant_id=tenant_id,
                 conversation_id=conversation_id,
@@ -82,7 +82,7 @@ def query_handoff_tickets(
     :return: 工单列表
     """
     try:
-        with SessionLocal() as db:
+        with get_db_session() as db:
             q = db.query(HandoffTicket).filter(HandoffTicket.tenant_id == tenant_id)
             if status:
                 q = q.filter(HandoffTicket.status == status)
@@ -107,7 +107,7 @@ def resolve_handoff_ticket(ticket_id: str, assigned_to: str = "") -> dict:
     :return: 操作结果
     """
     try:
-        with SessionLocal() as db:
+        with get_db_session() as db:
             ticket = db.query(HandoffTicket).filter_by(id=ticket_id).first()
             if not ticket:
                 return {"success": False, "message": "工单不存在"}

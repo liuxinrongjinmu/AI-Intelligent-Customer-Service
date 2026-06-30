@@ -31,6 +31,9 @@ RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/wh
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
     --no-compile
 
+# 预下载 Embedding 模型到镜像层（避免每次首次启动从 HuggingFace 下载约 100MB）
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-small-zh-v1.5')"
+
 # 清理虚拟环境中的缓存和编译产物
 RUN find /opt/venv -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null; \
     find /opt/venv -type f -name "*.pyc" -delete 2>/dev/null; \

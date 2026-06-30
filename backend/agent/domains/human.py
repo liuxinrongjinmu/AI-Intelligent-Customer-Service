@@ -13,6 +13,7 @@ from backend.agent.retrieval_utils import format_history, clean_answer
 from backend.utils.security import sanitize_output
 from backend.utils.metrics import record_handoff
 from backend.services.handoff_service import create_handoff_ticket
+from backend.config import HANDOFF_DB_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ async def human_service_node(state: AgentState) -> dict:
                 user_id=user_id,
                 user_name=user_name,
             ),
-            timeout=10.0,
+            timeout=HANDOFF_DB_TIMEOUT,
         )
     except asyncio.TimeoutError:
         logger.error(f"创建转人工工单超时: tenant={tenant_id}, thread={thread_id}")
@@ -61,9 +62,9 @@ async def human_service_node(state: AgentState) -> dict:
     # 更新会话状态为"人工接待中"（失败重试 1 次，写库失败不阻塞转人工回复）
     for attempt in range(2):
         try:
-            from backend.database import SessionLocal
+            from backend.database import get_db_session
             from backend.models.conversation import Conversation
-            with SessionLocal() as db:
+            with get_db_session() as db:
                 conv = db.query(Conversation).filter_by(thread_id=thread_id).first()
                 if conv and conv.status == "ai_serving":
                     conv.transfer_to_human(

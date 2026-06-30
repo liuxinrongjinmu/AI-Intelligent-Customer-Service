@@ -1,6 +1,9 @@
 import logging
+from contextlib import contextmanager
+from typing import Generator
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import sessionmaker, DeclarativeBase, Session
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +79,23 @@ def get_db():
     获取数据库会话（FastAPI 依赖注入）
 
     :yield: SQLAlchemy Session 实例
+    """
+    session_factory = get_session_local()
+    db = session_factory()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@contextmanager
+def get_db_session() -> Generator[Session, None, None]:
+    """
+    获取数据库会话（上下文管理器，用于非依赖注入场景）
+
+    替代直接 SessionLocal() 调用，确保连接正确归还连接池。
+
+    :yields: SQLAlchemy Session 实例
     """
     session_factory = get_session_local()
     db = session_factory()

@@ -3,7 +3,7 @@
 运行方式：python -m backend.seed
 """
 import logging
-from backend.database import init_db, SessionLocal
+from backend.database import init_db, get_db_session
 from backend.models.tenant import Tenant, generate_api_key
 from backend.models.knowledge import FAQ
 from backend.retrieval.vector_store import clear_collection, add_to_collection_sync
@@ -80,52 +80,49 @@ DEMO_FAQS = [
 def seed():
     logger.info("初始化数据库表...")
     init_db()
-    db = SessionLocal()
+    with get_db_session() as db:
+        try:
+            existing = db.query(Tenant).filter_by(tenant_id="demo_001").first()
+            if existing:
+                logger.info("租户 demo_001 已存在，尝试同步FAQ到向量库...")
+                logger.info(f"  API Key 前缀: {existing.api_key_prefix}")
+                faq_count = db.query(FAQ).filter_by(tenant_id='demo_001').count()
+                logger.info(f"  FAQ 数量: {faq_count}")
+                if faq_count > 0:
+                    _sync_faqs_to_chromadb("demo_001", db)
+                return
 
-    try:
-        existing = db.query(Tenant).filter_by(tenant_id="demo_001").first()
-        if existing:
-            logger.info("租户 demo_001 已存在，尝试同步FAQ到向量库...")
-            logger.info(f"  API Key 前缀: {existing.api_key_prefix}")
-            faq_count = db.query(FAQ).filter_by(tenant_id='demo_001').count()
-            logger.info(f"  FAQ 数量: {faq_count}")
-            if faq_count > 0:
-                _sync_faqs_to_chromadb("demo_001", db)
-            return
+            logger.info("创建演示租户...")
+            raw_key, hashed, prefix = generate_api_key()
+            tenant = Tenant(
+                tenant_id="demo_001",
+                name="演示商家",
+                api_key_hash=hashed,
+                api_key_prefix=prefix,
+            )
+            db.add(tenant)
+            db.flush()
 
-        logger.info("创建演示租户...")
-        raw_key, hashed, prefix = generate_api_key()
-        tenant = Tenant(
-            tenant_id="demo_001",
-            name="演示商家",
-            api_key_hash=hashed,
-            api_key_prefix=prefix,
-        )
-        db.add(tenant)
-        db.flush()
+            logger.info(f"  tenant_id: demo_001")
+            logger.info(f"  API Key:   {raw_key}")
+            logger.info(f"  (请妥善保存API Key，仅显示一次)")
 
-        logger.info(f"  tenant_id: demo_001")
-        logger.info(f"  API Key:   {raw_key}")
-        logger.info(f"  (请妥善保存API Key，仅显示一次)")
+            logger.info(f"\n创建 {len(DEMO_FAQS)} 条示例FAQ...")
+            for faq_data in DEMO_FAQS:
+                faq = FAQ(tenant_id="demo_001", **faq_data)
+                db.add(faq)
+            db.commit()
 
-        logger.info(f"\n创建 {len(DEMO_FAQS)} 条示例FAQ...")
-        for faq_data in DEMO_FAQS:
-            faq = FAQ(tenant_id="demo_001", **faq_data)
-            db.add(faq)
-        db.commit()
+            logger.info("\n同步 FAQ 到 ChromaDB 向量库...")
+            _sync_faqs_to_chromadb("demo_001", db)
 
-        logger.info("\n同步 FAQ 到 ChromaDB 向量库...")
-        _sync_faqs_to_chromadb("demo_001", db)
+            logger.info("种子数据创建完成！")
+            logger.info(f"  API Key: {raw_key}")
 
-        logger.info("种子数据创建完成！")
-        logger.info(f"  API Key: {raw_key}")
-
-    except Exception as e:
-        db.rollback()
-        logger.error(f"种子数据创建失败: {e}")
-        raise
-    finally:
-        db.close()
+        except Exception as e:
+            db.rollback()
+            logger.error(f"种子数据创建失败: {e}")
+            raise
 
 
 def _sync_faqs_to_chromadb(tenant_id: str, db):

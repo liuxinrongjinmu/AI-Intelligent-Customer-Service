@@ -71,8 +71,8 @@ def record_sync_log(
     :param status: 操作状态
     :param snapshot: 同步数据快照（用于回滚）
     """
-    from backend.database import SessionLocal
-    with SessionLocal() as db:
+    from backend.database import get_db_session
+    with get_db_session() as db:
         try:
             log = SyncLog(
                 tenant_id=tenant_id,
@@ -107,8 +107,8 @@ def get_sync_history(
     :param limit: 返回条数
     :return: 同步日志列表
     """
-    from backend.database import SessionLocal
-    with SessionLocal() as db:
+    from backend.database import get_db_session
+    with get_db_session() as db:
         q = db.query(SyncLog).filter(SyncLog.tenant_id == tenant_id)
         if kb_type:
             q = q.filter(SyncLog.kb_type == kb_type)
@@ -124,8 +124,8 @@ def get_last_sync_snapshot(tenant_id: str, kb_type: str) -> Optional[list[dict]]
     :param kb_type: 知识库类型
     :return: 快照数据列表，无记录返回 None
     """
-    from backend.database import SessionLocal
-    with SessionLocal() as db:
+    from backend.database import get_db_session
+    with get_db_session() as db:
         log = (
             db.query(SyncLog)
             .filter(

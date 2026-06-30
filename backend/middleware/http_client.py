@@ -72,9 +72,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._cleanup_interval = 60
 
     def _get_client_ip(self, request: Request) -> str:
-        forwarded = request.headers.get("X-Forwarded-For", "")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
+        """获取客户端真实 IP（仅使用 TCP 对端 IP，不信任可伪造的代理头）"""
         return request.client.host if request.client else "unknown"
 
     def _check_limit_memory(self, key: str, limit: int) -> bool:

@@ -53,6 +53,37 @@ jobs:
           ADMIN_API_KEY: "test-admin-key"
         run: pytest tests/unit/ --cov=backend --cov-report=term-missing --cov-fail-under=70
 
+  eval:
+    name: Quality Evaluation
+    runs-on: ubuntu-latest
+    needs: test
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+      - name: Run retrieval eval
+        run: python -m tests.eval.eval_retrieval
+      - name: Run intent eval
+        run: python -m tests.eval.eval_intent
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Scan dependencies for vulnerabilities
+        run: pip-audit -r requirements-lock.txt --ignore-vuln GHSA-xxxx
+
   build:
     needs: test
     runs-on: ubuntu-latest

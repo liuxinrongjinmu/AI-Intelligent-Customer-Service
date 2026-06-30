@@ -34,7 +34,7 @@ class _LRUCache:
         self._lock = Lock()
 
     def _make_key(self, text: str) -> str:
-        return hashlib.md5(text.encode("utf-8")).hexdigest()
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
     def get(self, text: str):
         key = self._make_key(text)
@@ -93,7 +93,7 @@ def _make_redis_key(category: str, text: str) -> str:
     :param text: 缓存原始 key 文本
     :return: Redis key 字符串
     """
-    hashed = hashlib.md5(text.encode("utf-8")).hexdigest()
+    hashed = hashlib.sha256(text.encode("utf-8")).hexdigest()
     return f"{_REDIS_KEY_PREFIX}{category}:{hashed}"
 
 

@@ -8,6 +8,7 @@ from backend.agent.state import AgentState
 from backend.agent.retrieval_utils import reciprocal_rank_fusion, keyword_boost
 from backend.utils.metrics import record_retrieval
 from backend.retrieval.hybrid_search import hybrid_search, keyword_match_search, ALL_KB_TYPES
+from backend.config import RETRIEVAL_THRESHOLD_FALLBACK
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ async def retrieve_knowledge_node(state: AgentState) -> dict:
             if not results:
                 results = await asyncio.to_thread(
                     hybrid_search, query=query, tenant_id=tenant_id,
-                    kb_types=kb_types, relevance_threshold=0.15
+                    kb_types=kb_types, relevance_threshold=RETRIEVAL_THRESHOLD_FALLBACK
                 )
         except Exception as e:
             logger.exception(f"向量检索异常(tenant={tenant_id}): {e}")

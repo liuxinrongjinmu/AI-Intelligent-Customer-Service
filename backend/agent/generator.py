@@ -8,9 +8,9 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from backend.agent.state import AgentState
 from backend.agent.prompts import GENERATE_SYSTEM_PROMPT, GENERATE_USER_PROMPT
 from backend.agent.llm_utils import safe_llm_stream, get_generate_llm
-from backend.agent.retrieval_utils import format_docs_for_llm, clean_answer
+from backend.agent.retrieval_utils import format_docs_for_llm, clean_answer, format_history
 from backend.utils.security import sanitize_output
-from backend.utils.response_cache import get_cached_answer, set_cached_answer
+from backend.utils.response_cache import get_cached_answer_async, set_cached_answer_async
 from backend.utils.advanced import get_fallback_response
 from backend.config import MIN_ANSWER_LENGTH_CACHE
 from backend.utils.metrics import record_cache
@@ -27,7 +27,7 @@ async def generate_answer_node(state: AgentState) -> dict:
     tenant_id = state.get("tenant_id", "")
     docs = state.get("retrieved_docs", [])
 
-    cached_answer = get_cached_answer(current_message, tenant_id)
+    cached_answer = await get_cached_answer_async(current_message, tenant_id)
     if cached_answer:
         record_cache(True)
         logger.info(f"答案缓存命中: tenant={tenant_id}, msg={current_message[:30]}")
@@ -37,11 +37,23 @@ async def generate_answer_node(state: AgentState) -> dict:
     context = format_docs_for_llm(docs)
     llm = get_generate_llm(streaming=True)
 
+    # 多轮对话时，将历史消息注入 prompt
+    if len(messages) >= 3:
+        history_text = format_history(messages[:-1])
+        user_prompt = (
+            f"## 对话历史\n{history_text}\n\n"
+            f"## 知识库检索结果\n{context}\n\n"
+            f"用户当前问题：{current_message}\n\n"
+            f"请根据上述对话历史和知识库检索结果，简洁地回答用户。"
+        )
+    else:
+        user_prompt = GENERATE_USER_PROMPT.format(message=current_message, context=context)
+
     raw = await safe_llm_stream(
         llm,
         [
             SystemMessage(content=GENERATE_SYSTEM_PROMPT.format(tenant_name=tenant_name)),
-            HumanMessage(content=GENERATE_USER_PROMPT.format(message=current_message, context=context))
+            HumanMessage(content=user_prompt)
         ],
         fallback_text="抱歉，我暂时无法生成回答，请稍后重试或联系人工客服。",
         node_name="generate_answer"
@@ -52,7 +64,7 @@ async def generate_answer_node(state: AgentState) -> dict:
 
     # 只要 LLM 生成了有意义回复就缓存（不限于有检索结果时）
     if answer and len(answer) > MIN_ANSWER_LENGTH_CACHE:
-        set_cached_answer(current_message, tenant_id, answer)
+        await set_cached_answer_async(current_message, tenant_id, answer)
 
     logger.info(
         f"生成回答: length={len(answer)}, "

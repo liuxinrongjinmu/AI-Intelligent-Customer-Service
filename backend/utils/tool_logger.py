@@ -11,7 +11,7 @@ import logging
 import time
 from typing import Any
 
-from backend.database import SessionLocal
+from backend.database import get_db_session
 from backend.models.conversation import ToolCallLog
 
 logger = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ async def log_tool_call(
     """
     def _write():
         try:
-            with SessionLocal() as db:
+            with get_db_session() as db:
                 log = ToolCallLog(
                     conversation_id=conversation_id,
                     tenant_id=tenant_id,

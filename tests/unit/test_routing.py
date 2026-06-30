@@ -3,7 +3,7 @@
 """
 import pytest
 from backend.agent.state import INTENT_HIERARCHY
-from backend.agent.nodes import route_by_intent
+from backend.agent.classifier import route_by_intent
 from tests.unit.conftest import make_test_state
 
 
@@ -17,6 +17,18 @@ class TestRouteByIntent:
 
     def test_human_service_routes_to_human_service_node(self):
         state = _make_state("human_service")
+        target = route_by_intent(state)
+        assert target == "human_service_node"
+
+    def test_human_service_complaint_routes_to_complaint_node(self):
+        """投诉子类应路由到 complaint_node 安抚用户，而非直接转人工"""
+        state = _make_state("human_service", "complaint")
+        target = route_by_intent(state)
+        assert target == "complaint_node"
+
+    def test_human_service_user_request_routes_to_human_service_node(self):
+        """非投诉的转人工子类仍路由到 human_service_node"""
+        state = _make_state("human_service", "user_request")
         target = route_by_intent(state)
         assert target == "human_service_node"
 

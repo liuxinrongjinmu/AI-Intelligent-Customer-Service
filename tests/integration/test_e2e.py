@@ -11,6 +11,8 @@ import httpx
 import pytest
 
 SKIP_E2E = os.getenv("SKIP_E2E", "").lower() == "true"
+BASE_URL = os.getenv("TEST_BASE_URL", "http://localhost:8080")
+GATEWAY_TOKEN = os.getenv("GATEWAY_VERIFIED_VALUE", "true")
 
 TEST_CASES = [
     ("客户经理被投诉扣几分？", "knowledge_query → 检索退货扣分规则"),
@@ -47,13 +49,13 @@ async def test_e2e_intent_routing(query, description):
     async with httpx.AsyncClient(timeout=120) as client:
         async with client.stream(
             'POST',
-            'http://localhost:8080/api/v1/chat/demo_001/stream',
+            f'{BASE_URL}/api/v1/chat/demo_001/stream',
             json={
                 'message': query,
                 'session_id': f'e2e_test_{abs(hash(query))}',
                 'user_id': 'e2e_test_user',
             },
-            headers={"X-Gateway-Verified": "true"}
+            headers={"X-Gateway-Verified": GATEWAY_TOKEN}
         ) as resp:
             assert resp.status_code == 200, (
                 f"[{description}] HTTP 状态码异常: {resp.status_code}"

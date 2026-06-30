@@ -11,7 +11,7 @@ from backend.agent.state import AgentState, INTENT_HIERARCHY
 from backend.agent.prompts import CLASSIFY_SYSTEM_PROMPT, CLASSIFY_USER_PROMPT
 from backend.agent.llm_utils import safe_llm_invoke, get_classify_llm
 from backend.agent.retrieval_utils import format_history
-from backend.utils.response_cache import get_cached_intent, set_cached_intent
+from backend.utils.response_cache import get_cached_intent_async, set_cached_intent_async
 from backend.utils.metrics import record_cache, record_request_timing
 from backend.utils.token_budget import estimate_tokens
 from backend.retrieval.hybrid_search import ALL_KB_TYPES
@@ -44,7 +44,7 @@ async def classify_intent_node(state: AgentState) -> dict:
     # 意图缓存：仅对无历史对话的首条消息生效
     has_history = len(messages) > 1
     if not has_history:
-        cached = get_cached_intent(current_message, tenant_id)
+        cached = await get_cached_intent_async(current_message, tenant_id)
         if cached:
             record_cache(True)
             logger.info(f"意图缓存命中: {cached['intent']}/{cached['intent_sub_type']}")
@@ -139,7 +139,7 @@ async def classify_intent_node(state: AgentState) -> dict:
     }
     # 仅成功分类时写入缓存（失败结果不缓存，避免 LLM 偶发故障后所有相同消息被错误路由）
     if not (intent == "other" and intent_sub_type in ("unknown", "ambiguous")):
-        set_cached_intent(current_message, result, tenant_id)
+        await set_cached_intent_async(current_message, result, tenant_id)
     record_request_timing(time.time() - t0, intent=f"{intent}/{intent_sub_type}")
     return result
 
@@ -151,6 +151,12 @@ def route_by_intent(state: AgentState) -> Literal[
 ]:
     """根据意图路由到不同节点"""
     intent = state.get("intent", "other")
+    intent_sub_type = state.get("intent_sub_type", "")
+
+    # 投诉类先走 complaint_node 安抚用户（COMPLAINT_PROMPT），其他转人工场景走 human_service_node
+    if intent == "human_service" and intent_sub_type == "complaint":
+        logger.info(f"路由: intent={intent}/{intent_sub_type} → complaint_node")
+        return "complaint_node"
 
     route_map = {
         "human_service": "human_service_node",

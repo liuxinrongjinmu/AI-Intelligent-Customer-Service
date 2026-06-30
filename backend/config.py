@@ -128,6 +128,12 @@ class Settings(BaseSettings):
     max_sync_batch_size: int = Field(default=1000, ge=1, le=10000)
     # 用户消息最大长度（字符）
     max_message_length: int = Field(default=4000, ge=100, le=50000)
+    # 转人工工单数据库操作超时（秒）
+    handoff_db_timeout: float = Field(default=10.0, ge=1.0, le=60.0)
+    # 知识库降级检索阈值（低于此分数的结果不返回）
+    retrieval_threshold_fallback: float = Field(default=0.15, ge=0.0, le=1.0)
+    # Nacos 请求总超时（秒），含实例级重试和service层重试
+    nacos_total_timeout: float = Field(default=30.0, ge=10.0, le=120.0)
 
     # ─── 缓存容量 ──────────────────────────────────────────────────
     intent_cache_max_size: int = Field(default=500, ge=50, le=10000)
@@ -289,6 +295,9 @@ MAX_BODY_SIZE: int = settings.max_body_size
 SSE_TOTAL_TIMEOUT: int = settings.sse_total_timeout
 MAX_SYNC_BATCH_SIZE: int = settings.max_sync_batch_size
 MAX_MESSAGE_LENGTH: int = settings.max_message_length
+HANDOFF_DB_TIMEOUT: float = settings.handoff_db_timeout
+RETRIEVAL_THRESHOLD_FALLBACK: float = settings.retrieval_threshold_fallback
+NACOS_TOTAL_TIMEOUT: float = settings.nacos_total_timeout
 
 # ─── 缓存容量 ────────────────────────────────────────────────
 INTENT_CACHE_MAX_SIZE: int = settings.intent_cache_max_size

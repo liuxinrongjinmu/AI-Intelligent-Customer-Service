@@ -7,7 +7,7 @@ from backend.agent.state import AgentState
 from backend.agent.retrieval_utils import clean_answer
 from backend.utils.security import sanitize_output
 from backend.utils.tool_logger import call_and_log
-from backend.services.order_service import query_order, format_order_result
+from backend.services.order_service import query_order, format_order_result, query_order_list, format_order_list_result
 from backend.services.logistics_service import query_logistics, format_logistics_result
 
 logger = logging.getLogger(__name__)
@@ -20,6 +20,25 @@ async def order_query_node(state: AgentState) -> dict:
     tenant_id = state.get("tenant_id", "")
     entities = state.get("intent_entities", {})
     intent = state.get("intent", "order_query")
+    intent_sub_type = state.get("intent_sub_type", "")
+    user_id = state.get("user_id", "")
+
+    # 按子类分流：history_order → 查列表，其他 → 查详情
+    if intent_sub_type == "history_order" and user_id:
+        list_result = await call_and_log(
+            tenant_id=tenant_id,
+            tool_name="query_order_list",
+            tool_params={"tenant_id": tenant_id, "user_id": user_id},
+            func=query_order_list,
+            conversation_id=state.get("thread_id", ""),
+        )
+        if list_result.get("success", False):
+            formatted = format_order_list_result(list_result)
+            return {"final_answer": formatted}
+        if "暂未配置" in list_result.get("message", ""):
+            return {"final_answer": '订单查询服务暂未配置，无法为您查询订单列表。如需帮助，请说"转人工"联系客服。'}
+        answer = clean_answer(list_result.get("message", ""))
+        return {"final_answer": sanitize_output(answer)}
 
     order_keyword = entities.get("order_no", "") or entities.get("order_keyword", "")
     if not order_keyword:

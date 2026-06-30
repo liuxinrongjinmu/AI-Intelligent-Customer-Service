@@ -200,8 +200,9 @@ async def chat_stream(
         content=message,
     )
     db.add(user_msg)
-    # 暂不提交：用户消息与 AI 回复在 SSE 完成后一起 commit，保证原子性
-    db.flush()
+    # 立即提交用户消息：即使 SSE 期间客户端断连或 AI 回复失败，用户消息也不丢失
+    db.commit()
+    db.refresh(user_msg)
 
     record_chat_message()
 

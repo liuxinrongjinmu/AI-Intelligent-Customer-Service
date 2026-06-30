@@ -155,6 +155,91 @@
             }
           }
         }
+      },
+      {
+        "id": 11,
+        "title": "Tenant QPS (rate[1m])",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
+        "targets": [
+          {
+            "expr": "rate(kefu_chat_requests_total[1m])",
+            "legendFormat": "{{tenant_id}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "custom": {"lineWidth": 2, "fillOpacity": 10, "spanNulls": true}
+          }
+        }
+      },
+      {
+        "id": 12,
+        "title": "Tenant Request Latency (P99)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, rate(kefu_request_duration_ms_bucket[1m]))",
+            "legendFormat": "{{path}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "custom": {"lineWidth": 2, "fillOpacity": 10, "spanNulls": true}
+          }
+        }
+      },
+      {
+        "id": 13,
+        "title": "Intent Distribution (last 5m)",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 36},
+        "targets": [
+          {
+            "expr": "sum(rate(kefu_intent_classifications_total[5m])) by (intent)",
+            "legendFormat": "{{intent}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {}
+          }
+        },
+        "options": {
+          "displayLabels": ["percent", "name"],
+          "legend": {"displayMode": "table", "placement": "right"}
+        }
+      },
+      {
+        "id": 14,
+        "title": "LangGraph Node Duration (P50/P99)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 44},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(kefu_node_duration_ms_bucket[5m]))",
+            "legendFormat": "{{node}} P50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(kefu_node_duration_ms_bucket[5m]))",
+            "legendFormat": "{{node}} P99",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "custom": {"lineWidth": 2, "fillOpacity": 10, "spanNulls": true}
+          }
+        }
       }
     ]
   },

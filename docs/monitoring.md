@@ -176,7 +176,7 @@ http://<server-ip>:3000
 
 | 项 | 值 |
 |----|----|
-| 表达式 | `kefu_request_latency_ms{quantile="0.99"} > 5000` |
+| 表达式 | `kefu_request_duration_ms{quantile="0.99"} > 5000` |
 | 持续时间 | `5m` |
 | 触发条件 | 请求 P99 延迟超过 5 秒，持续 5 分钟 |
 | 处理建议 | 排查慢查询、LLM 响应时间、检索耗时、连接池状态 |
@@ -266,7 +266,7 @@ curl "http://localhost:9090/api/v1/query?query=kefu_active_requests"
 sum(rate(kefu_requests_total[5m])) by (path)
 
 # P99 延迟（按路径分组）
-kefu_request_latency_ms{quantile="0.99"}
+kefu_request_duration_ms{quantile="0.99"}
 
 # LLM 调用次数（按节点分组）
 sum(increase(kefu_llm_calls_total[1h])) by (node)
@@ -275,7 +275,7 @@ sum(increase(kefu_llm_calls_total[1h])) by (node)
 sum(rate(kefu_requests_total{status=~"5.."}[5m])) / sum(rate(kefu_requests_total[5m]))
 
 # 转人工率
-sum(rate(kefu_requests_total{path~".*handoff.*"}[10m])) / sum(rate(kefu_chat_messages_total[10m]))
+sum(rate(kefu_requests_total{path=~".*handoff.*"}[10m])) / sum(rate(kefu_chat_messages_total[10m]))
 ```
 
 ### 5.4 Grafana 排查

@@ -2,10 +2,9 @@
 监控 API — 健康检查 + Prometheus 指标
 """
 import logging
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from sqlalchemy import text as sa_text
 from backend.utils.metrics import get_metrics_text
-from backend.utils.auth import verify_chat_api_key
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/system", tags=["system"])
@@ -72,7 +71,12 @@ async def health_check():
 
 
 @router.get("/metrics")
-def get_metrics(_auth: str = Depends(verify_chat_api_key)):
-    """获取 Prometheus 格式的系统运行指标"""
+def get_metrics():
+    """
+    获取 Prometheus 格式的系统运行指标
+
+    安全策略：无应用层认证，通过 Docker 内部网络隔离保护。
+    生产环境应通过 Nginx/防火墙限制 /metrics 仅允许 Prometheus 访问。
+    """
     from fastapi.responses import PlainTextResponse
     return PlainTextResponse(content=get_metrics_text(), media_type="text/plain; charset=utf-8")

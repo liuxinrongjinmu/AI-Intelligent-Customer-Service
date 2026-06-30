@@ -224,10 +224,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_middleware(RequestIDMiddleware)
 app.add_middleware(BodySizeLimitMiddleware)
 app.add_middleware(MetricsMiddleware)
 app.add_middleware(RateLimitMiddleware, default_limit=120, chat_limit=60)
+# RequestID 最后注册 = 最先执行，确保限流日志中也包含 request_id
+app.add_middleware(RequestIDMiddleware)
 
 app.include_router(tenant_router)
 app.include_router(knowledge_router)

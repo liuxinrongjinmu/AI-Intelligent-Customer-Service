@@ -9,11 +9,14 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from backend.agent.state import AgentState
 from backend.agent.prompts import GENERATE_SYSTEM_PROMPT, GENERATE_USER_PROMPT
 from backend.agent.llm_utils import safe_llm_stream, get_generate_llm
-from backend.agent.retrieval_utils import format_docs_for_llm, clean_answer
+from backend.agent.retrieval_utils import format_docs_for_llm, clean_answer, format_history
 from backend.utils.security import sanitize_output
 from backend.utils.tool_logger import call_and_log
 from backend.services.product_service import query_product, format_product_result
 from backend.retrieval.hybrid_search import hybrid_search
+
+# 知识库检索降级阈值（仅在产品节点用，避免循环导入）
+RETRIEVAL_THRESHOLD_FALLBACK = 0.3
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +68,38 @@ async def product_query_node(state: AgentState) -> dict:
     if api_result.get("success", False) and api_result.get("total", 0) > 0:
         formatted = format_product_result(api_result)
         logger.info(f"商品查询成功: tenant={tenant_id}, total={api_result.get('total', 0)}")
-        return {"final_answer": formatted}
+
+        # 追问检测：当前消息很短（≤15字）说明用户在对商品追问细节
+        # （如"多少钱？""有货吗？"），需要用LLM提取精准答案
+        is_followup = len(current_message.strip()) <= 15
+
+        if is_followup:
+            history_text = format_history(messages[:-1])
+            followup_prompt = (
+                f"## 对话历史\n{history_text}\n\n"
+                f"## 商品信息\n{formatted}\n\n"
+                f"用户追问：{current_message}\n\n"
+                f"请根据商品信息，直接回答用户的追问。只给出简洁的答案，不要重复完整的商品信息。"
+            )
+            try:
+                llm = get_generate_llm(streaming=True)
+                followup_answer = await safe_llm_stream(
+                    llm,
+                    [
+                        SystemMessage(content=GENERATE_SYSTEM_PROMPT.format(tenant_name=tenant_name)),
+                        HumanMessage(content=followup_prompt)
+                    ],
+                    fallback_text=formatted,
+                    node_name="product_query_node"
+                )
+                answer = clean_answer(followup_answer)
+                answer = sanitize_output(answer)
+                logger.info(f"商品追问回答: '{current_message}' → '{answer[:50]}...'")
+                return {"final_answer": answer, "current_product": formatted}
+            except Exception as e:
+                logger.warning(f"追问LLM调用失败，回退完整商品信息: {e}")
+
+        return {"final_answer": formatted, "current_product": formatted}
 
     # 商品 API 未配置或查询失败 → 回退到知识库检索
     if "暂未配置" in api_result.get("message", "") or not api_result.get("success"):
@@ -73,7 +107,7 @@ async def product_query_node(state: AgentState) -> dict:
         try:
             docs = await asyncio.to_thread(
                 hybrid_search, query=search_name, tenant_id=tenant_id,
-                kb_types=["product", "faq"], relevance_threshold=0.15,
+                kb_types=["product", "faq"], relevance_threshold=RETRIEVAL_THRESHOLD_FALLBACK,
             )
         except Exception as e:
             logger.exception(f"知识库检索回退异常: {e}")

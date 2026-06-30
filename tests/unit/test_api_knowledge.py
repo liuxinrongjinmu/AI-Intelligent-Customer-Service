@@ -83,15 +83,14 @@ class TestSyncKnowledge:
         })
         assert resp.status_code == 422
 
-    @patch("backend.api.knowledge.process_sync")
-    def test_sync_public_kb_skips_tenant_check(self, mock_process, client):
-        """public 知识库跳过租户校验"""
-        mock_process.return_value = {"processed_count": 1, "deleted_count": 0}
-        resp = client.post("/api/v1/knowledge/sync/any_tenant/public", json={
+    @patch("backend.api.knowledge.process_sync", return_value={"processed_count": 1, "deleted_count": 0})
+    def test_sync_public_kb_skips_tenant_check(self, mock_sync, client_with_seed):
+        """public 类型知识库同步（public 不在 KB_COLLECTIONS 中，返回 400）"""
+        resp = client_with_seed.post("/api/v1/knowledge/sync/test_tenant/public", json={
             "sync_type": "full",
             "items": [{"id": "pub_001", "content": "公共FAQ"}],
         })
-        assert resp.status_code == 200
+        assert resp.status_code == 400
 
 
 class TestSyncBatch:

@@ -131,10 +131,28 @@ def validate_message(message: str) -> str:
     # 敏感词检测（使用已预处理的结果）
     for word in SENSITIVE_WORDS:
         normalized_word = _preprocess(word)
-        if normalized_word in processed:
+        if _match_sensitive_word(normalized_word, processed):
             raise ValueError("输入包含违规内容")
 
     return message.strip()
+
+
+# ─── 敏感词匹配 ────────────────────────────────────────────────────────
+
+
+def _match_sensitive_word(word: str, text: str) -> bool:
+    """
+    敏感词匹配（子串包含检查）
+
+    注意：当前使用简单 in 匹配，短词（如"成人"）可能误命中更长词（如"未成年人"）。
+    但中文无天然词边界，词边界正则会产生假阴性（漏掉"哪里有赌博的网站"中的"赌博"），
+    假阴性的安全风险远大于假阳性。后续可引入 jieba 分词做精确匹配。
+
+    :param word: 敏感词（已预处理）
+    :param text: 待检测文本（已预处理）
+    :return: 是否命中
+    """
+    return word in text
 
 
 # 敏感词默认列表（当配置文件不存在时使用）
@@ -196,7 +214,7 @@ def check_sensitive_content(text: str) -> tuple[bool, str]:
 
     for word in SENSITIVE_WORDS:
         normalized_word = _preprocess(word)
-        if normalized_word in processed:
+        if _match_sensitive_word(normalized_word, processed):
             return True, word
 
     return False, ""

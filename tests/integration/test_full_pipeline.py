@@ -35,8 +35,10 @@ TENANT_A = "test_shop_a"
 TENANT_B = "test_shop_b"
 
 # Gateway 认证头（所有接口统一通过内网 VPN + Gateway 认证）
+GATEWAY_TOKEN = os.getenv("GATEWAY_VERIFIED_VALUE", "true")
+
 GATEWAY_HEADERS = {
-    "X-Gateway-Verified": "true",
+    "X-Gateway-Verified": GATEWAY_TOKEN,
     "X-Real-IP": "10.0.0.1",
 }
 
@@ -121,7 +123,7 @@ def send_chat(tenant_id: str, message: str, session_id: str = "", user_id: str =
                     data = json.loads(line[6:])
                     events.append(data)
                     if data.get("type") == "text":
-                        answer = data.get("content", "")
+                        answer += data.get("content", "")
                     elif data.get("type") == "done":
                         result_session_id = data.get("session_id", "")
                     elif data.get("type") == "error":
@@ -344,10 +346,13 @@ def test_scenario_4():
         ok = False
     check("4.3 批量增删操作成功", lambda: ok)
 
-    # 4.4 删除单条知识
-    r = httpx.delete(
-        f"{BASE_URL}/api/v1/knowledge/sync/{TENANT_A}/faq/faq_a_001",
-        headers=sync_headers(), timeout=10,
+    # 4.4 删除单条知识（通过 batch 接口的 delete_ids）
+    time.sleep(2)  # 等待嵌入完成
+    r = httpx.post(
+        f"{BASE_URL}/api/v1/knowledge/sync/{TENANT_A}/faq/batch",
+        headers=sync_headers(),
+        json={"delete_ids": ["faq_a_001"]},
+        timeout=30,
     )
     check("4.4 删除单条FAQ成功", lambda: r.status_code == 200)
 

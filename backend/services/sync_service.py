@@ -311,11 +311,10 @@ def _persist_relational_records(
         return
 
     try:
-        from backend.database import SessionLocal
+        from backend.database import get_db_session
         from backend.models.knowledge import FAQ, Document
 
-        db = SessionLocal()
-        try:
+        with get_db_session() as db:
             # DELETE 与 INSERT 在同一事务内，避免中途失败导致数据丢失
             if full_replace:
                 if kb_type == "faq":
@@ -362,8 +361,6 @@ def _persist_relational_records(
                 f"关系表写入完成: tenant={tenant_id}, kb_type={kb_type}, "
                 f"count={len(items)}, full_replace={full_replace}"
             )
-        finally:
-            db.close()
     except Exception as e:
         logger.warning(f"关系表写入失败（不影响向量库）: tenant={tenant_id}, kb_type={kb_type}, error={e}")
 

@@ -99,12 +99,11 @@ def verify_jwt_token(token: str) -> dict:
     :raises HTTPException: 验签失败
     """
     if not JWT_SECRET:
-        logger.warning("JWT_SECRET 未配置，跳过 JWT 验签")
-        # 开发环境：不解码，返回空 payload
-        try:
-            return pyjwt.decode(token, options={"verify_signature": False})
-        except Exception:
-            return {}
+        logger.error("JWT_SECRET 未配置，JWT 验签无法执行")
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "AUTH_CONFIG_ERROR", "message": "认证服务配置异常"}
+        )
 
     try:
         payload = pyjwt.decode(token, JWT_SECRET, algorithms=["HS256"])

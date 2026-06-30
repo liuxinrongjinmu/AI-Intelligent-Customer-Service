@@ -24,7 +24,8 @@ import pytest
 
 SKIP_STRESS = os.getenv("SKIP_STRESS", "").lower() == "true"
 BASE_URL = os.getenv("TEST_BASE_URL", "http://localhost:8080")
-GATEWAY_HEADERS = {"X-Gateway-Verified": "true", "Content-Type": "application/json"}
+GATEWAY_TOKEN = os.getenv("GATEWAY_VERIFIED_VALUE", "true")
+GATEWAY_HEADERS = {"X-Gateway-Verified": GATEWAY_TOKEN, "Content-Type": "application/json"}
 
 
 def _chat_payload(message: str, session_id: str = "stress_test") -> dict:

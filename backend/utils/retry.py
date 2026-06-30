@@ -55,7 +55,7 @@ def retry_on_transient_error(
     base_delay: float = DEFAULT_BASE_DELAY,
     max_delay: float = DEFAULT_MAX_DELAY,
     backoff_factor: float = DEFAULT_BACKOFF_FACTOR,
-):
+) -> Callable[[F], F]:
     """
     装饰器：为异步函数添加指数退避重试
 
